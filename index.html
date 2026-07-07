@@ -1,0 +1,2225 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Balaji Service Society Payroll Management App</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root{
+    --ink:#1B2A41;
+    --ink-soft:#2E4157;
+    --paper:#FAF7F0;
+    --paper-line:#E4DFD1;
+    --ledger-green:#2F5233;
+    --ledger-green-soft:#E7EEE3;
+    --gold:#C9A227;
+    --gold-soft:#F3E9C7;
+    --red:#B3432B;
+    --red-soft:#F5E3DD;
+    --ash:#6B7280;
+    --white:#FFFFFF;
+    --radius:10px;
+    --shadow:0 1px 2px rgba(27,42,65,0.06), 0 4px 14px rgba(27,42,65,0.05);
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--paper);
+    color:var(--ink);
+    font-family:'Inter',sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  h1,h2,h3{
+    font-family:'Fraunces',serif;
+    font-weight:600;
+    margin:0;
+    letter-spacing:-0.01em;
+  }
+  .mono{font-family:'IBM Plex Mono',monospace;font-variant-numeric:tabular-nums;}
+  ::selection{background:var(--gold-soft);}
+
+  /* ---------- Header ---------- */
+  header.topbar{
+    background:
+      repeating-linear-gradient(to bottom, transparent 0 27px, rgba(255,255,255,0.05) 27px 28px),
+      linear-gradient(135deg,#16233A,#1B2A41 55%,#233953);
+    color:var(--paper);
+    padding:22px 28px 18px;
+    position:sticky; top:0; z-index:40;
+    box-shadow:var(--shadow);
+  }
+  .topbar-inner{
+    max-width:1180px; margin:0 auto;
+    display:flex; align-items:flex-end; justify-content:space-between; gap:20px; flex-wrap:wrap;
+  }
+  .brand-mark{
+    display:flex; align-items:baseline; gap:10px;
+  }
+  .brand-mark .ledger-no{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11px; letter-spacing:0.14em;
+    color:var(--gold);
+    text-transform:uppercase;
+    border:1px solid rgba(201,162,39,0.5);
+    padding:3px 8px; border-radius:5px;
+  }
+  header.topbar h1{font-size:26px; color:#fff;}
+  header.topbar .tagline{font-size:13px; color:#C7D0DC; margin-top:3px;}
+  nav.tabs{
+    display:flex; gap:4px; max-width:1180px; margin:16px auto 0;
+    flex-wrap:wrap;
+  }
+  nav.tabs button{
+    appearance:none; border:none; cursor:pointer;
+    background:rgba(255,255,255,0.06);
+    color:#D9E0E8;
+    font-family:'Inter',sans-serif;
+    font-size:13.5px; font-weight:600;
+    padding:10px 16px;
+    border-radius:8px 8px 0 0;
+    transition:background .15s ease, color .15s ease;
+  }
+  nav.tabs button:hover{background:rgba(255,255,255,0.12); color:#fff;}
+  nav.tabs button.active{background:var(--paper); color:var(--ink);}
+
+  /* ---------- Layout ---------- */
+  main{max-width:1180px; margin:0 auto; padding:28px 28px 80px;}
+  .view{display:none; animation:fadein .2s ease;}
+  .view.active{display:block;}
+  @keyframes fadein{from{opacity:0; transform:translateY(4px);} to{opacity:1; transform:translateY(0);}}
+
+  .section-head{display:flex; align-items:center; justify-content:space-between; margin-bottom:18px; gap:12px; flex-wrap:wrap;}
+  .section-head h2{font-size:22px;}
+  .section-head .sub{color:var(--ash); font-size:13px; margin-top:4px; font-family:'Inter',sans-serif;}
+
+  .card{
+    background:var(--white);
+    border:1px solid var(--paper-line);
+    border-radius:var(--radius);
+    box-shadow:var(--shadow);
+    padding:20px;
+    margin-bottom:20px;
+  }
+
+  /* ---------- Buttons ---------- */
+  .btn{
+    appearance:none; border:none; cursor:pointer; font-family:'Inter',sans-serif;
+    font-weight:600; font-size:13.5px; padding:9px 16px; border-radius:7px;
+    display:inline-flex; align-items:center; gap:7px; transition:transform .1s ease, filter .15s ease;
+  }
+  .btn:active{transform:translateY(1px);}
+  .btn-primary{background:var(--ink); color:#fff;}
+  .btn-primary:hover{filter:brightness(1.15);}
+  .btn-gold{background:var(--gold); color:#3A2E05;}
+  .btn-gold:hover{filter:brightness(1.06);}
+  .btn-ghost{background:transparent; color:var(--ink); border:1px solid var(--paper-line);}
+  .btn-ghost:hover{background:var(--paper);}
+  .btn-danger{background:var(--red-soft); color:var(--red);}
+  .btn-danger:hover{filter:brightness(0.97);}
+  .btn-sm{padding:6px 11px; font-size:12.5px; border-radius:6px;}
+  .btn[disabled]{opacity:0.45; cursor:not-allowed;}
+
+  /* ---------- Forms ---------- */
+  label{font-size:12px; font-weight:600; color:var(--ash); text-transform:uppercase; letter-spacing:0.04em; display:block; margin-bottom:5px;}
+  input,select{
+    width:100%; padding:9px 11px; border:1px solid var(--paper-line); border-radius:7px;
+    font-family:'Inter',sans-serif; font-size:14px; background:#fff; color:var(--ink);
+  }
+  input:focus,select:focus{outline:2px solid var(--gold); outline-offset:1px; border-color:var(--gold);}
+  .field{margin-bottom:14px;}
+  .grid{display:grid; gap:14px;}
+  .grid-2{grid-template-columns:1fr 1fr;}
+  .grid-3{grid-template-columns:1fr 1fr 1fr;}
+  .grid-4{grid-template-columns:1fr 1fr 1fr 1fr;}
+  @media (max-width:720px){.grid-2,.grid-3,.grid-4{grid-template-columns:1fr;}}
+
+  /* ---------- Tables (ledger style) ---------- */
+  .table-wrap{overflow-x:auto; border:1px solid var(--paper-line); border-radius:var(--radius);}
+  table{width:100%; border-collapse:collapse; min-width:640px; background:#fff;}
+  thead th{
+    background:var(--ink); color:#EDEBE2;
+    font-family:'Inter',sans-serif; font-size:11px; text-transform:uppercase; letter-spacing:0.05em;
+    text-align:left; padding:11px 12px; white-space:nowrap; font-weight:600;
+  }
+  thead th.num, td.num{text-align:right;}
+  tbody td{
+    padding:10px 12px; border-bottom:1px solid var(--paper-line); font-size:13.5px; white-space:nowrap;
+  }
+  tbody tr:nth-child(even){background:#FCFAF5;}
+  tbody tr:hover{background:var(--gold-soft);}
+  tbody tr:last-child td{border-bottom:none;}
+  td input{padding:6px 8px; font-size:13px; min-width:64px;}
+  .pill{
+    display:inline-block; padding:3px 9px; border-radius:20px; font-size:11px; font-weight:700;
+    letter-spacing:0.02em;
+  }
+  .pill-green{background:var(--ledger-green-soft); color:var(--ledger-green);}
+  .pill-gold{background:var(--gold-soft); color:#7A611A;}
+  .pill-red{background:var(--red-soft); color:var(--red);}
+  .empty-state{
+    text-align:center; padding:48px 20px; color:var(--ash);
+  }
+  .empty-state h3{color:var(--ink); font-size:17px; margin-bottom:6px;}
+
+  .toolbar{display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-bottom:16px;}
+  .toolbar input[type=text], .toolbar select{width:auto; min-width:160px;}
+  .search-box{position:relative; flex:1; min-width:180px;}
+
+  .net-figure{font-weight:700; color:var(--ledger-green);}
+  .neg-figure{color:var(--red);}
+
+  .modal-backdrop{
+    position:fixed; inset:0; background:rgba(27,42,65,0.45); display:none;
+    align-items:center; justify-content:center; z-index:100; padding:20px;
+  }
+  .modal-backdrop.active{display:flex;}
+  .modal{
+    background:#fff; border-radius:var(--radius); padding:24px; width:100%; max-width:520px;
+    max-height:88vh; overflow-y:auto; box-shadow:0 20px 60px rgba(0,0,0,0.25);
+  }
+  .modal h3{font-size:19px; margin-bottom:16px;}
+  .modal-actions{display:flex; justify-content:flex-end; gap:10px; margin-top:18px;}
+
+  .toast{
+    position:fixed; bottom:24px; left:50%; transform:translateX(-50%);
+    background:var(--ink); color:#fff; padding:12px 20px; border-radius:8px;
+    font-size:13.5px; font-weight:600; box-shadow:var(--shadow); z-index:200;
+    opacity:0; pointer-events:none; transition:opacity .2s ease, transform .2s ease;
+  }
+  .toast.show{opacity:1; transform:translateX(-50%) translateY(-6px);}
+
+  .stat-row{display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-bottom:20px;}
+  @media (max-width:720px){.stat-row{grid-template-columns:1fr 1fr;}}
+  .stat-card{
+    background:#fff; border:1px solid var(--paper-line); border-radius:var(--radius); padding:16px 18px;
+    box-shadow:var(--shadow);
+  }
+  .stat-card .label{font-size:11px; text-transform:uppercase; letter-spacing:0.05em; color:var(--ash); font-weight:600;}
+  .stat-card .value{font-family:'IBM Plex Mono',monospace; font-size:22px; font-weight:600; margin-top:6px; color:var(--ink);}
+
+  .type-row{display:flex; align-items:center; justify-content:space-between; padding:10px 0; border-bottom:1px solid var(--paper-line);}
+  .type-row:last-child{border-bottom:none;}
+  .type-name{font-weight:600;}
+
+  .badge-inst{font-size:11px; font-weight:700; padding:2px 8px; border-radius:5px; background:#E3ECF4; color:#22496E; display:inline-block;}
+
+  .report-tabs{display:flex; gap:8px; margin-bottom:18px; flex-wrap:wrap;}
+  .report-tabs button{
+    appearance:none; border:1px solid var(--paper-line); background:#fff; cursor:pointer;
+    padding:8px 14px; border-radius:7px; font-weight:600; font-size:13px; color:var(--ink-soft);
+  }
+  .report-tabs button.active{background:var(--ink); color:#fff; border-color:var(--ink);}
+
+  .print-only{display:none;}
+  @media print{
+    header.topbar, nav.tabs, .no-print{display:none !important;}
+    body{background:#fff;}
+    main{padding:0; max-width:none;}
+    .print-only{display:block;}
+    .card{box-shadow:none; border:none;}
+  }
+
+  .footer-note{
+    text-align:center; color:var(--ash); font-size:12px; margin-top:40px; padding-top:20px;
+    border-top:1px dashed var(--paper-line);
+  }
+
+  select#configMode{width:auto;}
+
+  /* ---------- Payslip ---------- */
+  .payslip-sheet{
+    border:1px solid var(--paper-line); border-radius:var(--radius); padding:28px 30px;
+    background:
+      repeating-linear-gradient(to bottom, transparent 0 27px, rgba(27,42,65,0.02) 27px 28px),
+      #fff;
+  }
+  .payslip-letterhead{ text-align:center; border-bottom:2px solid var(--ink); padding-bottom:14px; margin-bottom:20px; }
+  .payslip-letterhead h2{ font-size:24px; color:var(--ink); }
+  .payslip-inst{ font-size:13px; color:var(--ash); margin-top:3px; font-weight:600; }
+  .payslip-period{ font-size:13px; color:var(--gold); font-weight:700; text-transform:uppercase; letter-spacing:0.05em; margin-top:8px; }
+  .payslip-info-grid{
+    display:grid; grid-template-columns:repeat(4,1fr); gap:14px 18px; margin-bottom:22px;
+    padding-bottom:18px; border-bottom:1px dashed var(--paper-line);
+  }
+  @media (max-width:720px){ .payslip-info-grid{ grid-template-columns:repeat(2,1fr); } }
+  .payslip-info-grid label{ font-size:10.5px; }
+  .payslip-info-grid > div > div{ font-size:13.5px; font-weight:600; color:var(--ink); margin-top:2px; }
+  .payslip-table{ width:100%; border-collapse:collapse; margin-bottom:0; }
+  .payslip-table th{
+    background:var(--ink); color:#EDEBE2; font-size:11px; text-transform:uppercase; letter-spacing:0.05em;
+    text-align:left; padding:9px 12px; font-weight:600;
+  }
+  .payslip-table th.num, .payslip-table td.num{ text-align:right; }
+  .payslip-table td{ padding:8px 12px; border-bottom:1px solid var(--paper-line); font-size:13.5px; }
+  .payslip-subtotal td{ font-weight:700; background:var(--paper); border-top:2px solid var(--ink); border-bottom:none; }
+  .payslip-netpay{
+    display:flex; align-items:baseline; justify-content:space-between; flex-wrap:wrap; gap:6px 16px;
+    background:var(--ledger-green-soft); border-radius:8px; padding:14px 18px; margin:18px 0 22px;
+  }
+  .payslip-netpay-label{ font-size:13px; font-weight:700; color:var(--ledger-green); text-transform:uppercase; letter-spacing:0.04em; }
+  .payslip-netpay-amount{ font-size:22px; font-weight:700; color:var(--ledger-green); }
+  .payslip-netpay-words{ width:100%; font-size:12px; color:var(--ash); font-style:italic; }
+  .payslip-signrow{ display:flex; align-items:flex-end; justify-content:space-between; gap:20px; margin-top:36px; }
+  .payslip-sign-box{ flex:1; text-align:center; }
+  .payslip-sign-line{ border-top:1px solid var(--ink); margin-bottom:6px; height:44px; }
+  .payslip-sign-label{ font-size:11.5px; font-weight:600; color:var(--ash); line-height:1.4; }
+  .payslip-seal-box{ display:flex; align-items:center; justify-content:center; }
+  .payslip-seal-placeholder{
+    width:86px; height:86px; border:2px dashed #B9C3CC; border-radius:50%;
+    display:flex; align-items:center; justify-content:center; color:#B9C3CC;
+    font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.08em;
+  }
+  .payslip-footnote{ text-align:center; font-size:11px; color:var(--ash); margin-top:26px; }
+  @media print{
+    .payslip-sheet{ border:none; padding:0; }
+  }
+
+  /* ---------- Login ---------- */
+  .login-screen{
+    position:fixed; inset:0; z-index:500; display:flex; align-items:center; justify-content:center;
+    background:
+      repeating-linear-gradient(to bottom, transparent 0 27px, rgba(255,255,255,0.04) 27px 28px),
+      linear-gradient(135deg,#16233A,#1B2A41 55%,#233953);
+    padding:20px;
+  }
+  .login-card{
+    background:#fff; border-radius:14px; padding:32px 30px; width:100%; max-width:380px;
+    box-shadow:0 24px 70px rgba(0,0,0,0.35);
+  }
+  .login-mark{text-align:center; margin-bottom:24px;}
+  .login-mark h1{font-size:21px; color:var(--ink);}
+  .login-mark .tagline{font-size:12.5px; color:var(--ash); margin-top:4px;}
+  .login-error{
+    background:var(--red-soft); color:var(--red); font-size:12.5px; font-weight:600;
+    padding:8px 12px; border-radius:7px; margin-bottom:14px;
+  }
+  .login-hint{text-align:center; font-size:11.5px; color:var(--ash); margin-top:16px;}
+  .config-banner{
+    background:var(--gold-soft); border:1px solid #E4D28C; border-radius:8px;
+    padding:10px 14px; font-size:12.5px; color:#6B551A; margin-bottom:18px;
+    display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap;
+  }
+</style>
+</head>
+<body>
+
+<div id="loginScreen" class="login-screen">
+  <div class="login-card">
+    <div class="login-mark">
+      <h1>Balaji Service Society</h1>
+      <div class="tagline">Payroll Management App</div>
+    </div>
+    <div class="field">
+      <label>Username</label>
+      <input type="text" id="loginUsername" autocomplete="username" onkeydown="if(event.key==='Enter')document.getElementById('loginPassword').focus()">
+    </div>
+    <div class="field">
+      <label>Password</label>
+      <input type="password" id="loginPassword" autocomplete="current-password" onkeydown="if(event.key==='Enter')attemptLogin()">
+    </div>
+    <div id="loginError" class="login-error" style="display:none;">Incorrect username or password.</div>
+    <button class="btn btn-primary" style="width:100%; justify-content:center;" onclick="attemptLogin()">Sign In</button>
+    <p class="login-hint">Demo mode default: <span class="mono">admin</span> / <span class="mono">admin123</span></p>
+  </div>
+</div>
+
+<div id="appRoot" style="display:none;">
+
+<header class="topbar">
+  <div class="topbar-inner">
+    <div class="brand-mark">
+      <div>
+        <h1>Balaji Service Society</h1>
+        <div class="tagline">Payroll Management App</div>
+      </div>
+    </div>
+    <div style="display:flex; align-items:center; gap:12px;">
+      <span class="ledger-no" id="periodBadge">JUL 2026</span>
+      <span id="loggedInAs" style="font-size:12px; color:#C7D0DC;"></span>
+      <button class="btn btn-ghost btn-sm no-print" onclick="logout()" style="background:rgba(255,255,255,0.08); color:#EDEBE2; border-color:rgba(255,255,255,0.2);">Logout</button>
+    </div>
+  </div>
+  <nav class="tabs">
+    <button data-view="staff" class="active">Staff</button>
+    <button data-view="payroll">Run Payroll</button>
+    <button data-view="reports">Reports</button>
+    <button data-view="settings">Settings</button>
+  </nav>
+</header>
+
+<main>
+
+  <div class="config-banner no-print" id="configBanner">
+    <span id="configBannerText">Demo mode — data is stored in this browser only. Connect your Google Sheet in <strong>Settings → Connection</strong> to go live.</span>
+    <button class="btn btn-ghost btn-sm" onclick="switchView('settings')">Open Settings</button>
+  </div>
+
+  <!-- ============ STAFF VIEW ============ -->
+  <section class="view active" id="view-staff">
+    <div class="section-head">
+      <div>
+        <h2>Staff</h2>
+        <div class="sub">Manage employee records, salary base, bank details and statutory rates.</div>
+      </div>
+      <div style="display:flex; gap:10px; flex-wrap:wrap;">
+        <button class="btn btn-ghost" onclick="document.getElementById('staffImportFile').click()">⬆ Import from Excel</button>
+        <input type="file" id="staffImportFile" accept=".xlsx,.xls,.csv" style="display:none;" onchange="handleStaffImportFile(event)">
+        <button class="btn btn-gold" onclick="openStaffModal()">+ Add Staff</button>
+      </div>
+    </div>
+
+    <div id="importSummary" class="card no-print" style="display:none;"></div>
+
+    <div class="stat-row">
+      <div class="stat-card"><div class="label">Active Staff</div><div class="value" id="statActiveStaff">0</div></div>
+      <div class="stat-card"><div class="label">Institutions</div><div class="value" id="statInstitutions">0</div></div>
+      <div class="stat-card"><div class="label">Branches</div><div class="value" id="statBranches">0</div></div>
+      <div class="stat-card"><div class="label">Monthly Base Total</div><div class="value mono" id="statBaseTotal">₹0</div></div>
+    </div>
+
+    <div class="card">
+      <div class="toolbar">
+        <div class="search-box">
+          <input type="text" id="staffSearch" placeholder="Search by name or designation…" oninput="renderStaffTable()">
+        </div>
+        <select id="staffInstFilter" onchange="renderStaffTable()">
+          <option value="">All Institutions</option>
+        </select>
+        <select id="staffBranchFilter" onchange="renderStaffTable()">
+          <option value="">All Branches</option>
+        </select>
+        <select id="staffDesignationFilter" onchange="renderStaffTable()">
+          <option value="">All Designations</option>
+        </select>
+        <select id="staffPaymentFilter" onchange="renderStaffTable()">
+          <option value="">All Payment Modes</option>
+          <option value="Bank Transfer">Bank Transfer</option>
+          <option value="Cash">Cash</option>
+        </select>
+        <select id="staffStatusFilter" onchange="renderStaffTable()">
+          <option value="Active">Active only</option>
+          <option value="">All statuses</option>
+          <option value="Inactive">Inactive only</option>
+        </select>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>ID</th><th>Name</th><th>Designation</th><th>Institution</th><th>Branch</th>
+              <th class="num">Base Salary</th><th>Bank A/C</th><th>Payment</th><th class="num">PF %</th><th class="num">ESI %</th>
+              <th>Status</th><th></th>
+            </tr>
+          </thead>
+          <tbody id="staffTableBody"></tbody>
+        </table>
+      </div>
+      <div class="empty-state" id="staffEmpty" style="display:none;">
+        <h3>No staff yet</h3>
+        <p>Add your first staff member to get started.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ PAYROLL VIEW ============ -->
+  <section class="view" id="view-payroll">
+    <div class="section-head">
+      <div>
+        <h2>Run Payroll</h2>
+        <div class="sub">Enter leaves, overtime and advances for every staff member, then save the month in one go. To edit a month you've already saved, just pick that month and year and click Load — the saved values will appear, ready to change and re-save.</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="toolbar">
+        <div class="field" style="margin:0; min-width:140px;">
+          <label>Month</label>
+          <select id="payrollMonth"></select>
+        </div>
+        <div class="field" style="margin:0; min-width:110px;">
+          <label>Year</label>
+          <select id="payrollYear"></select>
+        </div>
+        <div class="field" style="margin:0; min-width:160px;">
+          <label>Institution</label>
+          <select id="payrollInstFilter">
+            <option value="">All Institutions</option>
+          </select>
+        </div>
+        <div class="field" style="margin:0; min-width:200px; flex:1;">
+          <label>Search Staff</label>
+          <input type="text" id="payrollSearch" placeholder="Search by name…" style="width:100%;" oninput="filterPayrollRows()">
+        </div>
+        <button class="btn btn-ghost" style="align-self:flex-end;" onclick="loadPayrollTable()">Load</button>
+        <div style="flex:1;"></div>
+        <button class="btn btn-primary" style="align-self:flex-end;" onclick="savePayrollTable()">Save Payroll for Month</button>
+      </div>
+
+      <div class="table-wrap">
+        <table id="payrollTable">
+          <thead><tr id="payrollHeadRow"></tr></thead>
+          <tbody id="payrollTableBody"></tbody>
+        </table>
+      </div>
+      <div class="empty-state" id="payrollEmpty" style="display:none;">
+        <h3>No active staff to pay</h3>
+        <p>Add staff members in the Staff tab first.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ REPORTS VIEW ============ -->
+  <section class="view" id="view-reports">
+    <div class="section-head">
+      <div>
+        <h2>Reports</h2>
+        <div class="sub">Monthly summaries, payslips, yearly view and the bank credit report.</div>
+      </div>
+    </div>
+
+    <div class="report-tabs no-print">
+      <button data-report="stafflist" class="active">Staff List</button>
+      <button data-report="summary">Monthly Summary</button>
+      <button data-report="bank">Bank Report</button>
+      <button data-report="cash">Cash Payments</button>
+      <button data-report="payslip">Payslip</button>
+      <button data-report="yearly">Yearly View</button>
+    </div>
+
+    <!-- Staff List -->
+    <div class="card report-panel" id="report-stafflist">
+      <div class="toolbar no-print">
+        <select id="stafflistInst">
+          <option value="">All Institutions</option>
+        </select>
+        <select id="stafflistBranch">
+          <option value="">All Branches</option>
+        </select>
+        <select id="stafflistDesignation">
+          <option value="">All Designations</option>
+        </select>
+        <select id="stafflistStatus">
+          <option value="Active">Active only</option>
+          <option value="">All statuses</option>
+          <option value="Inactive">Inactive only</option>
+        </select>
+        <button class="btn btn-ghost btn-sm" onclick="renderStaffListReport()">Refresh</button>
+        <div style="flex:1"></div>
+        <button class="btn btn-ghost btn-sm" onclick="window.print()">Print</button>
+        <button class="btn btn-gold btn-sm" onclick="exportStaffListCSV()">Export CSV</button>
+      </div>
+      <div id="stafflistReportBody"></div>
+    </div>
+
+    <!-- Summary -->
+    <div class="card report-panel" id="report-summary" style="display:none;">
+      <div class="toolbar no-print">
+        <select id="summaryMonth"></select>
+        <select id="summaryYear"></select>
+        <select id="summaryInst">
+          <option value="">All Institutions</option>
+        </select>
+        <button class="btn btn-ghost btn-sm" onclick="renderSummaryReport()">Refresh</button>
+        <div style="flex:1"></div>
+        <button class="btn btn-ghost btn-sm" onclick="window.print()">Print</button>
+        <button class="btn btn-gold btn-sm" onclick="exportSummaryCSV()">Export CSV</button>
+      </div>
+      <div id="summaryReportBody"></div>
+    </div>
+
+    <!-- Bank -->
+    <div class="card report-panel" id="report-bank" style="display:none;">
+      <div class="toolbar no-print">
+        <select id="bankMonth"></select>
+        <select id="bankYear"></select>
+        <select id="bankInst">
+          <option value="">All Institutions</option>
+        </select>
+        <button class="btn btn-ghost btn-sm" onclick="renderBankReport()">Refresh</button>
+        <div style="flex:1"></div>
+        <button class="btn btn-ghost btn-sm" onclick="window.print()">Print PDF</button>
+        <button class="btn btn-gold btn-sm" onclick="exportBankCSV()">Export CSV</button>
+      </div>
+      <div id="bankReportBody"></div>
+    </div>
+
+    <!-- Cash -->
+    <div class="card report-panel" id="report-cash" style="display:none;">
+      <div class="toolbar no-print">
+        <select id="cashMonth"></select>
+        <select id="cashYear"></select>
+        <select id="cashInst">
+          <option value="">All Institutions</option>
+        </select>
+        <button class="btn btn-ghost btn-sm" onclick="renderCashReport()">Refresh</button>
+        <div style="flex:1"></div>
+        <button class="btn btn-ghost btn-sm" onclick="window.print()">Print</button>
+        <button class="btn btn-gold btn-sm" onclick="exportCashCSV()">Export CSV</button>
+      </div>
+      <div id="cashReportBody"></div>
+    </div>
+
+    <!-- Payslip -->
+    <div class="card report-panel" id="report-payslip" style="display:none;">
+      <div class="toolbar no-print">
+        <select id="payslipStaff"></select>
+        <select id="payslipMonth"></select>
+        <select id="payslipYear"></select>
+        <button class="btn btn-ghost btn-sm" onclick="renderPayslip()">Show</button>
+        <div style="flex:1"></div>
+        <button class="btn btn-ghost btn-sm" onclick="window.print()">Print</button>
+      </div>
+      <div id="payslipBody"></div>
+    </div>
+
+    <!-- Yearly -->
+    <div class="card report-panel" id="report-yearly" style="display:none;">
+      <div class="toolbar no-print">
+        <select id="yearlyStaff"></select>
+        <select id="yearlyYear"></select>
+        <button class="btn btn-ghost btn-sm" onclick="renderYearly()">Show</button>
+        <div style="flex:1"></div>
+        <button class="btn btn-ghost btn-sm" onclick="window.print()">Print</button>
+      </div>
+      <div id="yearlyBody"></div>
+    </div>
+  </section>
+
+  <!-- ============ SETTINGS VIEW ============ -->
+  <section class="view" id="view-settings">
+    <div class="section-head">
+      <div>
+        <h2>Settings</h2>
+        <div class="sub">Allowance &amp; deduction types, statutory defaults, and the connection to your Google Sheet.</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3 style="margin-bottom:4px;">Login &amp; Users</h3>
+      <p class="sub" style="margin-bottom:6px;">Manage who can sign in to this app. Anyone in this list can log in with their username and password.</p>
+      <p class="sub" style="margin-bottom:14px; color:#B3432B;">⚠ This is basic access control, not enterprise-grade security — passwords are stored as plain text in your Google Sheet and checked in the browser. Don't reuse an important password here, and keep edit access to the Sheet itself limited to people you trust.</p>
+      <div id="usersList"></div>
+      <div class="grid grid-3" style="margin-top:16px; align-items:end;">
+        <div class="field" style="margin:0;">
+          <label>Full Name</label>
+          <input type="text" id="newUserName" placeholder="e.g. Anil Kumar">
+        </div>
+        <div class="field" style="margin:0;">
+          <label>Username</label>
+          <input type="text" id="newUserUsername" placeholder="e.g. anil">
+        </div>
+        <div class="field" style="margin:0;">
+          <label>Password</label>
+          <input type="text" id="newUserPassword" placeholder="Choose a password">
+        </div>
+      </div>
+      <button class="btn btn-primary" style="margin-top:12px;" onclick="addUser()">+ Add User</button>
+    </div>
+
+    <div class="card">
+      <h3 style="margin-bottom:4px;">Institutions</h3>
+      <p class="sub" style="margin-bottom:14px;">Manage the list of institutions (e.g. Bapuji, Balaji). These appear as a dropdown when adding or editing staff, and as a filter across Staff Management, Run Payroll, and Reports.</p>
+      <div id="institutionsList"></div>
+      <div class="grid grid-2" style="margin-top:16px; align-items:end;">
+        <div class="field" style="margin:0;">
+          <label>Institution Name</label>
+          <input type="text" id="newInstitutionName" placeholder="e.g. Bapuji">
+        </div>
+        <button class="btn btn-primary" onclick="addInstitution()">+ Add Institution</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3 style="margin-bottom:4px;">Designations</h3>
+      <p class="sub" style="margin-bottom:14px;">Manage the list of job titles/roles (e.g. English Teacher, Accountant). These appear as a dropdown when adding or editing staff, and as a filter in Staff Management.</p>
+      <div id="designationsList"></div>
+      <div class="grid grid-2" style="margin-top:16px; align-items:end;">
+        <div class="field" style="margin:0;">
+          <label>Designation Name</label>
+          <input type="text" id="newDesignationName" placeholder="e.g. English Teacher">
+        </div>
+        <button class="btn btn-primary" onclick="addDesignation()">+ Add Designation</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3 style="margin-bottom:4px;">Branches</h3>
+      <p class="sub" style="margin-bottom:14px;">Manage the list of branches. These appear as a dropdown when adding or editing staff, and as a filter in Staff Management.</p>
+      <div id="branchesList"></div>
+      <div class="grid grid-2" style="margin-top:16px; align-items:end;">
+        <div class="field" style="margin:0;">
+          <label>Branch Name</label>
+          <input type="text" id="newBranchName" placeholder="e.g. Papanaidupeta">
+        </div>
+        <button class="btn btn-primary" onclick="addBranch()">+ Add Branch</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3 style="margin-bottom:4px;">Allowance &amp; Deduction Types</h3>
+      <p class="sub" style="margin-bottom:14px;">These appear as editable columns in Run Payroll. Add as many as you need — TA, DA, HRA, uniform deduction, loan recovery, etc.</p>
+      <div id="typesList"></div>
+      <div class="grid grid-3" style="margin-top:16px; align-items:end;">
+        <div class="field" style="margin:0;">
+          <label>Type Name</label>
+          <input type="text" id="newTypeName" placeholder="e.g. TA">
+        </div>
+        <div class="field" style="margin:0;">
+          <label>Kind</label>
+          <select id="newTypeKind">
+            <option value="allowance">Allowance (adds to pay)</option>
+            <option value="deduction">Deduction (subtracts from pay)</option>
+          </select>
+        </div>
+        <button class="btn btn-primary" onclick="addType()">+ Add Type</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3 style="margin-bottom:4px;">Statutory Defaults</h3>
+      <p class="sub" style="margin-bottom:14px;">Default PF and ESI percentages applied to new staff (calculated on base salary). Override per staff on their record.</p>
+      <div class="grid grid-2">
+        <div class="field" style="margin:0;">
+          <label>Default PF %</label>
+          <input type="number" step="0.01" id="defaultPF" onchange="saveDefaults()">
+        </div>
+        <div class="field" style="margin:0;">
+          <label>Default ESI %</label>
+          <input type="number" step="0.01" id="defaultESI" onchange="saveDefaults()">
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3 style="margin-bottom:4px;">Connection</h3>
+      <p class="sub" style="margin-bottom:14px;">This app is pre-configured to fetch permanently from your Google Sheet — every visit, on every device, reads live data. Only change the URL below if you need to point it at a different Sheet (e.g. testing).</p>
+      <div class="field">
+        <label>Apps Script Web App URL</label>
+        <input type="text" id="apiUrlInput" placeholder="https://script.google.com/macros/s/XXXX/exec">
+      </div>
+      <button class="btn btn-primary" onclick="saveApiUrl()">Save &amp; Reconnect</button>
+      <button class="btn btn-ghost" onclick="useDemoMode()">Use Demo Mode</button>
+      <div id="connectionStatus" style="margin-top:12px; font-size:13px;"></div>
+    </div>
+
+    <div class="card">
+      <h3 style="margin-bottom:4px;">Data</h3>
+      <p class="sub" style="margin-bottom:14px;">Demo data lives in this browser only.</p>
+      <button class="btn btn-danger" onclick="resetDemoData()">Reset Demo Data</button>
+    </div>
+  </section>
+
+</main>
+
+</div>
+
+<div class="toast" id="toast"></div>
+
+<!-- Staff Modal -->
+<div class="modal-backdrop" id="staffModalBackdrop">
+  <div class="modal">
+    <h3 id="staffModalTitle">Add Staff</h3>
+    <input type="hidden" id="staffId">
+    <div class="grid grid-2">
+      <div class="field"><label>Full Name</label><input type="text" id="staffName"></div>
+      <div class="field">
+        <label>Designation</label>
+        <select id="staffDesignation"></select>
+      </div>
+      <div class="field">
+        <label>Institution</label>
+        <select id="staffInstitution"></select>
+      </div>
+      <div class="field">
+        <label>Branch</label>
+        <select id="staffBranch"></select>
+      </div>
+      <div class="field"><label>Monthly Base Salary (₹)</label><input type="number" id="staffBase"></div>
+      <div class="field"><label>Bank Name</label><input type="text" id="staffBankName"></div>
+      <div class="field"><label>Bank Account Number</label><input type="text" id="staffBankAcc"></div>
+      <div class="field"><label>PF %</label><input type="number" step="0.01" id="staffPF"></div>
+      <div class="field"><label>ESI %</label><input type="number" step="0.01" id="staffESI"></div>
+      <div class="field">
+        <label>Payment Mode</label>
+        <select id="staffPaymentMode"><option value="Bank Transfer">Bank Transfer</option><option value="Cash">Cash (paid by hand)</option></select>
+      </div>
+      <div class="field"><label>Contact Number</label><input type="text" id="staffContact"></div>
+      <div class="field"><label>Date of Joining</label><input type="date" id="staffDOJ"></div>
+      <div class="field">
+        <label>Status</label>
+        <select id="staffStatus"><option>Active</option><option>Inactive</option></select>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeStaffModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveStaffModal()">Save Staff</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* =========================================================
+   CONFIG
+========================================================= */
+const MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+/**
+ * Paste your Google Apps Script Web App URL below (from Deploy > Web app).
+ * Once this is filled in, the app always fetches live from your Google Sheet
+ * on every device and every visit — no per-browser setup needed.
+ * Leave it as '' to use local demo mode instead.
+ */
+const DEFAULT_API_URL = 'https://script.google.com/macros/s/AKfycbz0nE-I09hQRFMe0sop3FYBE3x6xI5LJVMT3tt4EH9uO9KgA7tJfC9-5l-4F6E5EvhC/exec';
+
+let API_URL = (()=>{
+  const stored = localStorage.getItem('payroll_api_url');
+  if(stored === '__DEMO__') return '';
+  return stored || DEFAULT_API_URL;
+})();
+const now = new Date();
+const CURRENT_YEAR = now.getFullYear();
+document.getElementById('periodBadge').textContent = MONTHS[now.getMonth()].slice(0,3).toUpperCase() + ' ' + CURRENT_YEAR;
+
+/* =========================================================
+   DEMO DATA STORE (localStorage) — used when API_URL is empty
+========================================================= */
+const LS_KEYS = { staff:'payroll_staff', types:'payroll_types', payroll:'payroll_entries', defaults:'payroll_defaults', branches:'payroll_branches', institutions:'payroll_institutions', users:'payroll_users', designations:'payroll_designations' };
+
+function seedDemoData(){
+  const institutions = [
+    {id:'I001', name:'Bapuji', active:true},
+    {id:'I002', name:'Balaji', active:true}
+  ];
+  const branches = [
+    {id:'B001', name:'Papanaidupeta', active:true},
+    {id:'B002', name:'Madanapalle', active:true}
+  ];
+  const designations = [
+    {id:'D001', name:'Physical Education Teacher', active:true},
+    {id:'D002', name:'English Teacher', active:true},
+    {id:'D003', name:'School Bus Driver', active:true},
+    {id:'D004', name:'Office Assistant', active:true},
+    {id:'D005', name:'Accountant', active:true}
+  ];
+  const staff = [
+    {id:'S001', name:'K. Ramesh Babu', designation:'D001', institution:'I001', branch:'B001', baseSalary:18000, bankName:'Union Bank', bankAccount:'62481903215', pf:12, esi:0.75, contact:'9876543210', doj:'2018-06-01', status:'Active'},
+    {id:'S002', name:'P. Lakshmi Devi', designation:'D002', institution:'I001', branch:'B001', baseSalary:22000, bankName:'SBI', bankAccount:'30051177894', pf:12, esi:0.75, contact:'9876543211', doj:'2016-04-15', status:'Active'},
+    {id:'S003', name:'M. Venkata Rao', designation:'D003', institution:'I001', branch:'B001', baseSalary:15000, bankName:'Union Bank', bankAccount:'62481903400', pf:12, esi:0.75, paymentMode:'Cash', contact:'9876543212', doj:'2020-01-10', status:'Active'},
+    {id:'S004', name:'S. Anitha', designation:'D004', institution:'I002', branch:'B002', baseSalary:13500, bankName:'Andhra Pragathi Grameena Bank', bankAccount:'11002233445', pf:12, esi:0.75, contact:'9876543213', doj:'2019-08-20', status:'Active'},
+    {id:'S005', name:'D. Chandra Sekhar', designation:'D005', institution:'I002', branch:'B002', baseSalary:21000, bankName:'SBI', bankAccount:'30051199120', pf:12, esi:0.75, contact:'9876543214', doj:'2015-11-05', status:'Active'}
+  ];
+  const types = [
+    {id:'T001', name:'TA', kind:'allowance', active:true},
+    {id:'T002', name:'DA', kind:'allowance', active:true}
+  ];
+  const users = [
+    {username:'admin', password:'admin123', name:'Administrator', active:true}
+  ];
+  localStorage.setItem(LS_KEYS.staff, JSON.stringify(staff));
+  localStorage.setItem(LS_KEYS.types, JSON.stringify(types));
+  localStorage.setItem(LS_KEYS.branches, JSON.stringify(branches));
+  localStorage.setItem(LS_KEYS.institutions, JSON.stringify(institutions));
+  localStorage.setItem(LS_KEYS.designations, JSON.stringify(designations));
+  localStorage.setItem(LS_KEYS.users, JSON.stringify(users));
+  localStorage.setItem(LS_KEYS.payroll, JSON.stringify([]));
+  localStorage.setItem(LS_KEYS.defaults, JSON.stringify({pf:12, esi:0.75}));
+}
+if(!localStorage.getItem(LS_KEYS.staff)) seedDemoData();
+
+function lsGet(key){ return JSON.parse(localStorage.getItem(key) || '[]'); }
+function lsSet(key, val){ localStorage.setItem(key, JSON.stringify(val)); }
+
+/* =========================================================
+   DATA ACCESS LAYER
+   If API_URL set -> call Google Apps Script backend.
+   Else -> use localStorage demo store.
+   Swap these functions' internals once your Apps Script is live;
+   the rest of the app only calls these.
+========================================================= */
+async function apiCall(action, payload){
+  if(!API_URL){ throw new Error('demo'); }
+  const res = await fetch(API_URL, {
+    method:'POST',
+    cache:'no-store',
+    body: JSON.stringify({action, payload})
+  });
+  if(!res.ok) throw new Error('Google Sheet request failed: ' + res.status);
+  const json = await res.json();
+  if(json.ok === false) throw new Error(json.error || 'Google Sheet returned an error');
+  return json;
+}
+
+async function getStaff(){
+  if(!API_URL) return lsGet(LS_KEYS.staff);
+  const r = await apiCall('getStaff'); return r.data;
+}
+async function upsertStaff(staff){
+  if(!API_URL){
+    const all = lsGet(LS_KEYS.staff);
+    const idx = all.findIndex(s=>s.id===staff.id);
+    if(idx>-1) all[idx]=staff; else all.push(staff);
+    lsSet(LS_KEYS.staff, all);
+    return staff;
+  }
+  return (await apiCall('upsertStaff', staff)).data;
+}
+async function getTypes(){
+  if(!API_URL) return lsGet(LS_KEYS.types);
+  return (await apiCall('getTypes')).data;
+}
+async function saveTypesRemote(types){
+  if(!API_URL){ lsSet(LS_KEYS.types, types); return types; }
+  return (await apiCall('saveTypes', types)).data;
+}
+async function getBranches(){
+  if(!API_URL) return lsGet(LS_KEYS.branches);
+  return (await apiCall('getBranches')).data;
+}
+async function saveBranchesRemote(branches){
+  if(!API_URL){ lsSet(LS_KEYS.branches, branches); return branches; }
+  return (await apiCall('saveBranches', branches)).data;
+}
+async function getInstitutions(){
+  if(!API_URL) return lsGet(LS_KEYS.institutions);
+  return (await apiCall('getInstitutions')).data;
+}
+async function saveInstitutionsRemote(institutions){
+  if(!API_URL){ lsSet(LS_KEYS.institutions, institutions); return institutions; }
+  return (await apiCall('saveInstitutions', institutions)).data;
+}
+async function getUsers(){
+  if(!API_URL) return lsGet(LS_KEYS.users);
+  return (await apiCall('getUsers')).data;
+}
+async function saveUsersRemote(users){
+  if(!API_URL){ lsSet(LS_KEYS.users, users); return users; }
+  return (await apiCall('saveUsers', users)).data;
+}
+async function getDesignations(){
+  if(!API_URL) return lsGet(LS_KEYS.designations);
+  return (await apiCall('getDesignations')).data;
+}
+async function saveDesignationsRemote(designations){
+  if(!API_URL){ lsSet(LS_KEYS.designations, designations); return designations; }
+  return (await apiCall('saveDesignations', designations)).data;
+}
+async function getPayrollEntries(){
+  if(!API_URL) return lsGet(LS_KEYS.payroll);
+  return (await apiCall('getPayroll')).data;
+}
+async function savePayrollEntries(entries){
+  if(!API_URL){
+    const all = lsGet(LS_KEYS.payroll);
+    entries.forEach(e=>{
+      const idx = all.findIndex(x=>x.staffId===e.staffId && x.month===e.month && x.year===e.year);
+      if(idx>-1) all[idx]=e; else all.push(e);
+    });
+    lsSet(LS_KEYS.payroll, all);
+    return entries;
+  }
+  return (await apiCall('savePayroll', entries)).data;
+}
+function getDefaults(){ return JSON.parse(localStorage.getItem(LS_KEYS.defaults) || '{"pf":12,"esi":0.75}'); }
+function setDefaults(d){ localStorage.setItem(LS_KEYS.defaults, JSON.stringify(d)); }
+
+/* =========================================================
+   NAV
+========================================================= */
+document.querySelectorAll('nav.tabs button').forEach(btn=>{
+  btn.addEventListener('click', ()=>switchView(btn.dataset.view));
+});
+function switchView(view){
+  document.querySelectorAll('nav.tabs button').forEach(b=>b.classList.toggle('active', b.dataset.view===view));
+  document.querySelectorAll('.view').forEach(v=>v.classList.toggle('active', v.id==='view-'+view));
+  if(view==='staff') renderStaffTable();
+  if(view==='payroll') initPayrollControls();
+  if(view==='reports') initReportControls();
+  if(view==='settings') initSettings();
+}
+
+function toast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'), 2200);
+}
+function fmtMoney(n){
+  n = Math.round((n + Number.EPSILON) * 100) / 100;
+  return '₹' + n.toLocaleString('en-IN', {minimumFractionDigits:2, maximumFractionDigits:2});
+}
+function daysInMonth(month, year){ return new Date(year, month+1, 0).getDate(); }
+
+/**
+ * Normalizes any date value coming back from the Sheet (which may arrive as a
+ * full ISO timestamp, a Date object serialized to JSON, or an Excel date) into
+ * the strict YYYY-MM-DD format that <input type="date"> requires. Without this,
+ * the date input silently rejects anything that isn't exactly this format and
+ * renders blank, which is why "Date of Joining" kept appearing empty on edit.
+ */
+function toDateInputValue(raw){
+  if(!raw) return '';
+  if(typeof raw === 'string'){
+    const m = raw.match(/^(\d{4}-\d{2}-\d{2})/);
+    if(m) return m[1];
+  }
+  const d = new Date(raw);
+  if(isNaN(d.getTime())) return '';
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth()+1).padStart(2,'0');
+  const dd = String(d.getDate()).padStart(2,'0');
+  return `${yyyy}-${mm}-${dd}`;
+}
+function formatDateDisplay(raw){
+  const v = toDateInputValue(raw);
+  if(!v) return '—';
+  const [y,m,d] = v.split('-');
+  return `${d}-${m}-${y}`;
+}
+
+/* =========================================================
+   STAFF VIEW
+========================================================= */
+let staffCache = [];
+let branchCache = [];
+let institutionCache = [];
+let designationCache = [];
+async function populateBranchFilter(){
+  branchCache = await getBranches();
+  const sel = document.getElementById('staffBranchFilter');
+  const current = sel.value;
+  sel.innerHTML = '<option value="">All Branches</option>' + branchCache.map(b=>`<option value="${b.id}">${b.name}</option>`).join('');
+  sel.value = current;
+}
+async function populateInstitutionFilter(){
+  institutionCache = await getInstitutions();
+  const sel = document.getElementById('staffInstFilter');
+  const current = sel.value;
+  sel.innerHTML = '<option value="">All Institutions</option>' + institutionCache.map(i=>`<option value="${i.id}">${i.name}</option>`).join('');
+  sel.value = current;
+}
+async function populateDesignationFilter(){
+  designationCache = await getDesignations();
+  const sel = document.getElementById('staffDesignationFilter');
+  const current = sel.value;
+  sel.innerHTML = '<option value="">All Designations</option>' + designationCache.map(d=>`<option value="${d.id}">${d.name}</option>`).join('');
+  sel.value = current;
+}
+function branchName(id){
+  const b = branchCache.find(x=>x.id===id);
+  return b ? b.name : '—';
+}
+function institutionName(id){
+  const i = institutionCache.find(x=>x.id===id);
+  return i ? i.name : '—';
+}
+function designationName(id){
+  const d = designationCache.find(x=>x.id===id);
+  return d ? d.name : '—';
+}
+async function renderStaffTable(){
+  staffCache = await getStaff();
+  await populateBranchFilter();
+  await populateInstitutionFilter();
+  await populateDesignationFilter();
+  const search = document.getElementById('staffSearch').value.toLowerCase();
+  const instFilter = document.getElementById('staffInstFilter').value;
+  const branchFilter = document.getElementById('staffBranchFilter').value;
+  const designationFilter = document.getElementById('staffDesignationFilter').value;
+  const paymentFilter = document.getElementById('staffPaymentFilter').value;
+  const statusFilter = document.getElementById('staffStatusFilter').value;
+
+  let rows = staffCache.filter(s=>{
+    const matchesSearch = !search || s.name.toLowerCase().includes(search) || designationName(s.designation).toLowerCase().includes(search);
+    const matchesInst = !instFilter || s.institution===instFilter;
+    const matchesBranch = !branchFilter || s.branch===branchFilter;
+    const matchesDesignation = !designationFilter || s.designation===designationFilter;
+    const matchesPayment = !paymentFilter || (s.paymentMode||'Bank Transfer')===paymentFilter;
+    const matchesStatus = !statusFilter || s.status===statusFilter;
+    return matchesSearch && matchesInst && matchesBranch && matchesDesignation && matchesPayment && matchesStatus;
+  });
+
+  const tbody = document.getElementById('staffTableBody');
+  tbody.innerHTML = '';
+  document.getElementById('staffEmpty').style.display = rows.length ? 'none' : 'block';
+
+  rows.forEach(s=>{
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td class="mono">${s.id}</td>
+      <td>${s.name}</td>
+      <td>${designationName(s.designation)}</td>
+      <td><span class="badge-inst">${institutionName(s.institution)}</span></td>
+      <td>${branchName(s.branch)}</td>
+      <td class="num mono">${fmtMoney(s.baseSalary)}</td>
+      <td class="mono">${s.bankAccount}</td>
+      <td><span class="pill ${(s.paymentMode||'Bank Transfer')==='Cash'?'pill-gold':'pill-green'}">${s.paymentMode||'Bank Transfer'}</span></td>
+      <td class="num mono">${s.pf}%</td>
+      <td class="num mono">${s.esi}%</td>
+      <td><span class="pill ${s.status==='Active'?'pill-green':'pill-red'}">${s.status}</span></td>
+      <td><button class="btn btn-ghost btn-sm" onclick="editStaff('${s.id}')">Edit</button></td>
+    `;
+    tbody.appendChild(tr);
+  });
+
+  const active = staffCache.filter(s=>s.status==='Active');
+  document.getElementById('statActiveStaff').textContent = active.length;
+  document.getElementById('statInstitutions').textContent = institutionCache.filter(i=>i.active!==false).length;
+  document.getElementById('statBranches').textContent = branchCache.filter(b=>b.active!==false).length;
+  document.getElementById('statBaseTotal').textContent = fmtMoney(active.reduce((a,s)=>a+Number(s.baseSalary),0));
+}
+
+async function populateBranchSelect(selectedId){
+  const sel = document.getElementById('staffBranch');
+  const branches = await getBranches();
+  let optionsHtml = branches.map(b=>`<option value="${b.id}">${b.name}</option>`).join('');
+  if(selectedId && !branches.some(b=>b.id===selectedId)){
+    optionsHtml = `<option value="${selectedId}">(deleted branch — reselect)</option>` + optionsHtml;
+  }
+  sel.innerHTML = optionsHtml;
+  if(selectedId) sel.value = selectedId;
+}
+async function populateInstitutionSelect(selectedId){
+  const sel = document.getElementById('staffInstitution');
+  const institutions = await getInstitutions();
+  let optionsHtml = institutions.map(i=>`<option value="${i.id}">${i.name}</option>`).join('');
+  if(selectedId && !institutions.some(i=>i.id===selectedId)){
+    optionsHtml = `<option value="${selectedId}">(deleted institution — reselect)</option>` + optionsHtml;
+  }
+  sel.innerHTML = optionsHtml;
+  if(selectedId) sel.value = selectedId;
+}
+async function populateDesignationSelect(selectedId){
+  const sel = document.getElementById('staffDesignation');
+  const designations = await getDesignations();
+  let optionsHtml = designations.map(d=>`<option value="${d.id}">${d.name}</option>`).join('');
+  if(selectedId && !designations.some(d=>d.id===selectedId)){
+    optionsHtml = `<option value="${selectedId}">(deleted designation — reselect)</option>` + optionsHtml;
+  }
+  sel.innerHTML = optionsHtml;
+  if(selectedId) sel.value = selectedId;
+}
+async function openStaffModal(){
+  document.getElementById('staffModalTitle').textContent = 'Add Staff';
+  ['staffId','staffName','staffBase','staffBankName','staffBankAcc','staffContact','staffDOJ'].forEach(id=>document.getElementById(id).value='');
+  await populateInstitutionSelect();
+  await populateDesignationSelect();
+  document.getElementById('staffStatus').value = 'Active';
+  document.getElementById('staffPaymentMode').value = 'Bank Transfer';
+  await populateBranchSelect();
+  const d = getDefaults();
+  document.getElementById('staffPF').value = d.pf;
+  document.getElementById('staffESI').value = d.esi;
+  document.getElementById('staffModalBackdrop').classList.add('active');
+}
+function closeStaffModal(){ document.getElementById('staffModalBackdrop').classList.remove('active'); }
+async function editStaff(id){
+  const s = staffCache.find(x=>x.id===id);
+  if(!s) return;
+  document.getElementById('staffModalTitle').textContent = 'Edit Staff';
+  document.getElementById('staffId').value = s.id;
+  document.getElementById('staffName').value = s.name;
+  await populateDesignationSelect(s.designation);
+  await populateInstitutionSelect(s.institution);
+  await populateBranchSelect(s.branch);
+  document.getElementById('staffBase').value = s.baseSalary;
+  document.getElementById('staffBankName').value = s.bankName;
+  document.getElementById('staffBankAcc').value = s.bankAccount;
+  document.getElementById('staffPF').value = s.pf;
+  document.getElementById('staffESI').value = s.esi;
+  document.getElementById('staffPaymentMode').value = s.paymentMode || 'Bank Transfer';
+  document.getElementById('staffContact').value = s.contact;
+  document.getElementById('staffDOJ').value = toDateInputValue(s.doj);
+  document.getElementById('staffStatus').value = s.status;
+  document.getElementById('staffModalBackdrop').classList.add('active');
+}
+async function saveStaffModal(){
+  const name = document.getElementById('staffName').value.trim();
+  if(!name){ toast('Please enter a name'); return; }
+  let id = document.getElementById('staffId').value;
+  if(!id){
+    const maxNum = staffCache.reduce((m,s)=>{
+      const n = parseInt((s.id||'S000').replace(/\D/g,''))||0; return Math.max(m,n);
+    },0);
+    id = 'S' + String(maxNum+1).padStart(3,'0');
+  }
+  const staff = {
+    id, name,
+    designation: document.getElementById('staffDesignation').value,
+    institution: document.getElementById('staffInstitution').value,
+    branch: document.getElementById('staffBranch').value,
+    baseSalary: Number(document.getElementById('staffBase').value)||0,
+    bankName: document.getElementById('staffBankName').value.trim(),
+    bankAccount: document.getElementById('staffBankAcc').value.trim(),
+    pf: Number(document.getElementById('staffPF').value)||0,
+    esi: Number(document.getElementById('staffESI').value)||0,
+    paymentMode: document.getElementById('staffPaymentMode').value,
+    contact: document.getElementById('staffContact').value.trim(),
+    doj: document.getElementById('staffDOJ').value,
+    status: document.getElementById('staffStatus').value
+  };
+  await upsertStaff(staff);
+  closeStaffModal();
+  toast('Staff saved');
+  renderStaffTable();
+}
+
+/* =========================================================
+   IMPORT STAFF FROM EXCEL
+   Expected columns (case/spacing insensitive): name, designation,
+   institution, branch, baseSalary, bankName, bankAccount, paymentMode,
+   pf, esi, contact, doj, status. "id" is optional — one is generated if
+   missing. institution/branch can be given as an existing ID or as a
+   plain name (a new one is created automatically if it doesn't exist yet).
+========================================================= */
+function normalizeImportKey(key){
+  return String(key||'').toLowerCase().replace(/[^a-z0-9]/g,'');
+}
+const IMPORT_FIELD_ALIASES = {
+  id: ['id','staffid','employeeid'],
+  name: ['name','staffname','fullname','employeename'],
+  designation: ['designation','role','position'],
+  institution: ['institution','institutionid','institutionname'],
+  branch: ['branch','branchid','branchname'],
+  baseSalary: ['basesalary','salary','basicsalary','monthlysalary'],
+  bankName: ['bankname'],
+  bankAccount: ['bankaccount','bankaccountnumber','accountnumber','bankaccountno'],
+  paymentMode: ['paymentmode','payment'],
+  pf: ['pf','pfpercent','pfpercentage'],
+  esi: ['esi','esipercent','esipercentage'],
+  contact: ['contact','contactnumber','phone','mobile'],
+  doj: ['doj','dateofjoining','joiningdate'],
+  status: ['status']
+};
+function mapImportRow(rawRow){
+  const mapped = {};
+  const rowKeys = Object.keys(rawRow);
+  Object.entries(IMPORT_FIELD_ALIASES).forEach(([field, aliases])=>{
+    for(const key of rowKeys){
+      if(aliases.includes(normalizeImportKey(key))){ mapped[field] = rawRow[key]; break; }
+    }
+  });
+  return mapped;
+}
+
+async function handleStaffImportFile(event){
+  const file = event.target.files[0];
+  if(!file) return;
+  const summaryEl = document.getElementById('importSummary');
+  summaryEl.style.display = 'block';
+  summaryEl.innerHTML = `<p style="font-size:13px; color:#6B7280;">Reading ${file.name}…</p>`;
+
+  try{
+    const data = await file.arrayBuffer();
+    const workbook = XLSX.read(data, {type:'array', cellDates:true});
+    const sheetName = workbook.SheetNames.includes('Staff') ? 'Staff' : workbook.SheetNames[0];
+    const sheet = workbook.Sheets[sheetName];
+    const rawRows = XLSX.utils.sheet_to_json(sheet, {defval:''});
+
+    if(!rawRows.length){
+      summaryEl.innerHTML = `<p style="color:var(--red); font-size:13px;">No rows found in "${sheetName}". Make sure the first row has column headers.</p>`;
+      event.target.value = '';
+      return;
+    }
+
+    const existingStaff = await getStaff();
+    let institutions = await getInstitutions();
+    let branches = await getBranches();
+    let designations = await getDesignations();
+    let institutionsChanged = false, branchesChanged = false, designationsChanged = false;
+
+    function resolveInstitution(raw){
+      if(!raw) return '';
+      const rawStr = String(raw).trim();
+      if(institutions.some(i=>i.id===rawStr)) return rawStr;
+      const byName = institutions.find(i=>i.name.toLowerCase()===rawStr.toLowerCase());
+      if(byName) return byName.id;
+      const newId = 'I' + String(Date.now()).slice(-6) + Math.floor(Math.random()*10);
+      institutions.push({id:newId, name:rawStr, active:true});
+      institutionsChanged = true;
+      return newId;
+    }
+    function resolveBranch(raw){
+      if(!raw) return '';
+      const rawStr = String(raw).trim();
+      if(branches.some(b=>b.id===rawStr)) return rawStr;
+      const byName = branches.find(b=>b.name.toLowerCase()===rawStr.toLowerCase());
+      if(byName) return byName.id;
+      const newId = 'B' + String(Date.now()).slice(-6) + Math.floor(Math.random()*10);
+      branches.push({id:newId, name:rawStr, active:true});
+      branchesChanged = true;
+      return newId;
+    }
+    function resolveDesignation(raw){
+      if(!raw) return '';
+      const rawStr = String(raw).trim();
+      if(designations.some(d=>d.id===rawStr)) return rawStr;
+      const byName = designations.find(d=>d.name.toLowerCase()===rawStr.toLowerCase());
+      if(byName) return byName.id;
+      const newId = 'D' + String(Date.now()).slice(-6) + Math.floor(Math.random()*10);
+      designations.push({id:newId, name:rawStr, active:true});
+      designationsChanged = true;
+      return newId;
+    }
+
+    let maxNum = existingStaff.reduce((m,s)=>{
+      const n = parseInt((s.id||'S000').replace(/\D/g,''))||0; return Math.max(m,n);
+    },0);
+
+    let imported = 0, updated = 0, skipped = 0;
+    const errors = [];
+
+    for(const rawRow of rawRows){
+      const row = mapImportRow(rawRow);
+      const name = String(row.name||'').trim();
+      if(!name){ skipped++; continue; }
+
+      let id = String(row.id||'').trim();
+      let isUpdate = false;
+      let existingRecord = null;
+      if(id && existingStaff.some(s=>s.id===id)){
+        isUpdate = true;
+        existingRecord = existingStaff.find(s=>s.id===id);
+      } else if(!id){
+        maxNum++;
+        id = 'S' + String(maxNum).padStart(3,'0');
+      }
+      // Start from the existing record when updating, so columns not present
+      // in this particular import file (e.g. a salary-only re-import) don't
+      // wipe out previously-set values like paymentMode or status.
+      const base = existingRecord || {};
+
+      const staff = {
+        id, name,
+        designation: row.designation !== undefined ? resolveDesignation(row.designation) : (base.designation||''),
+        institution: row.institution !== undefined ? resolveInstitution(row.institution) : (base.institution||''),
+        branch: row.branch !== undefined ? resolveBranch(row.branch) : (base.branch||''),
+        baseSalary: row.baseSalary !== undefined ? (Number(row.baseSalary)||0) : (base.baseSalary||0),
+        bankName: row.bankName !== undefined ? String(row.bankName).trim() : (base.bankName||''),
+        bankAccount: row.bankAccount !== undefined ? String(row.bankAccount).trim() : (base.bankAccount||''),
+        pf: row.pf !== undefined ? (Number(row.pf)||0) : (base.pf!==undefined ? base.pf : 0),
+        esi: row.esi !== undefined ? (Number(row.esi)||0) : (base.esi!==undefined ? base.esi : 0),
+        paymentMode: row.paymentMode !== undefined ? ((String(row.paymentMode).trim()==='Cash') ? 'Cash' : 'Bank Transfer') : (base.paymentMode||'Bank Transfer'),
+        contact: row.contact !== undefined ? String(row.contact).trim() : (base.contact||''),
+        doj: row.doj !== undefined ? toDateInputValue(row.doj) : (base.doj||''),
+        status: row.status !== undefined ? ((String(row.status).trim()==='Inactive') ? 'Inactive' : 'Active') : (base.status||'Active')
+      };
+
+      try{
+        await upsertStaff(staff);
+        existingStaff.push(staff);
+        if(isUpdate) updated++; else imported++;
+      } catch(e){
+        errors.push(`${name}: ${e.message}`);
+      }
+    }
+
+    if(institutionsChanged) await saveInstitutionsRemote(institutions);
+    if(branchesChanged) await saveBranchesRemote(branches);
+    if(designationsChanged) await saveDesignationsRemote(designations);
+
+    let summaryHtml = `<h3 style="margin-bottom:8px; font-size:16px;">Import complete</h3>
+      <p style="font-size:13.5px; margin-bottom:4px;">${imported} new staff added, ${updated} existing staff updated${skipped ? `, ${skipped} row(s) skipped (missing name)` : ''}.</p>`;
+    if(institutionsChanged || branchesChanged || designationsChanged){
+      summaryHtml += `<p style="font-size:12.5px; color:#6B7280;">New institutions/branches/designations found in the file were created automatically — check Settings to rename or clean these up if needed.</p>`;
+    }
+    if(errors.length){
+      summaryHtml += `<p style="font-size:12.5px; color:var(--red); margin-top:8px;">${errors.length} error(s):<br>${errors.slice(0,5).join('<br>')}</p>`;
+    }
+    summaryHtml += `<button class="btn btn-ghost btn-sm" style="margin-top:10px;" onclick="document.getElementById('importSummary').style.display='none';">Dismiss</button>`;
+    summaryEl.innerHTML = summaryHtml;
+
+    toast(`Imported ${imported + updated} staff from Excel`);
+    renderStaffTable();
+  } catch(e){
+    summaryEl.innerHTML = `<p style="color:var(--red); font-size:13px;">Could not read that file: ${e.message}. Make sure it's a valid .xlsx, .xls, or .csv file.</p>`;
+  }
+  event.target.value = '';
+}
+
+/* =========================================================
+   PAYROLL VIEW
+========================================================= */
+function populateMonthYear(monthSelId, yearSelId, yearsBack=3, yearsFwd=1){
+  const mSel = document.getElementById(monthSelId), ySel = document.getElementById(yearSelId);
+  if(mSel && !mSel.dataset.filled){
+    MONTHS.forEach((m,i)=>{
+      const o = document.createElement('option'); o.value=i; o.textContent=m; mSel.appendChild(o);
+    });
+    mSel.value = now.getMonth();
+    mSel.dataset.filled='1';
+  }
+  if(ySel && !ySel.dataset.filled){
+    for(let y=CURRENT_YEAR-yearsBack; y<=CURRENT_YEAR+yearsFwd; y++){
+      const o = document.createElement('option'); o.value=y; o.textContent=y; ySel.appendChild(o);
+    }
+    ySel.value = CURRENT_YEAR;
+    ySel.dataset.filled='1';
+  }
+}
+
+let payrollTypesCache = [];
+async function initPayrollControls(){
+  populateMonthYear('payrollMonth','payrollYear');
+  payrollTypesCache = (await getTypes()).filter(t=>t.active!==false);
+  const instSel = document.getElementById('payrollInstFilter');
+  const institutions = await getInstitutions();
+  const currentVal = instSel.value;
+  instSel.innerHTML = '<option value="">All Institutions</option>' + institutions.map(i=>`<option value="${i.id}">${i.name}</option>`).join('');
+  instSel.value = currentVal;
+  loadPayrollTable();
+}
+
+async function loadPayrollTable(){
+  const month = Number(document.getElementById('payrollMonth').value);
+  const year = Number(document.getElementById('payrollYear').value);
+  const instFilter = document.getElementById('payrollInstFilter').value;
+  const institutions = await getInstitutions();
+  const instNameOf = id => (institutions.find(i=>i.id===id) || {}).name || '—';
+  const allStaff = (await getStaff()).filter(s=>s.status==='Active' && (!instFilter || s.institution===instFilter));
+  const existingEntries = await getPayrollEntries();
+
+  const headRow = document.getElementById('payrollHeadRow');
+  headRow.innerHTML = `
+    <th>Staff</th><th>Institution</th>
+    <th class="num">Base</th>
+    <th class="num">Leaves</th>
+    <th class="num">Overtime (₹)</th>
+    <th class="num">Advance (₹)</th>
+    ${payrollTypesCache.map(t=>`<th class="num">${t.name} ${t.kind==='deduction'?'(–)':'(+)'}</th>`).join('')}
+    <th class="num">PF</th><th class="num">ESI</th>
+    <th class="num">Net Pay</th>
+    <th>Status</th>
+  `;
+
+  const tbody = document.getElementById('payrollTableBody');
+  tbody.innerHTML = '';
+  document.getElementById('payrollEmpty').style.display = allStaff.length ? 'none' : 'block';
+
+  allStaff.forEach(s=>{
+    const existing = existingEntries.find(e=>e.staffId===s.id && e.month===month && e.year===year);
+    const tr = document.createElement('tr');
+    tr.dataset.staffId = s.id;
+    tr.dataset.staffName = s.name.toLowerCase();
+    let typeInputs = payrollTypesCache.map(t=>{
+      const val = existing?.values?.[t.id] ?? 0;
+      return `<td class="num"><input type="number" min="0" step="0.01" class="type-input" data-type="${t.id}" value="${val}" oninput="recalcRow(this)"></td>`;
+    }).join('');
+    tr.innerHTML = `
+      <td>${s.name}</td>
+      <td><span class="badge-inst">${instNameOf(s.institution)}</span></td>
+      <td class="num mono base-cell" data-base="${s.baseSalary}">${fmtMoney(s.baseSalary)}</td>
+      <td class="num"><input type="number" min="0" step="0.5" class="leaves-input" value="${existing?.leaves ?? 0}" oninput="recalcRow(this)"></td>
+      <td class="num"><input type="number" min="0" step="0.01" class="overtime-input" value="${existing?.overtime ?? 0}" oninput="recalcRow(this)"></td>
+      <td class="num"><input type="number" min="0" step="0.01" class="advance-input" value="${existing?.advance ?? 0}" oninput="recalcRow(this)"></td>
+      ${typeInputs}
+      <td class="num mono pf-cell">—</td>
+      <td class="num mono esi-cell">—</td>
+      <td class="num mono net-cell net-figure">—</td>
+      <td>${existing ? `<span class="pill pill-green" title="Last saved ${existing.savedAt ? new Date(existing.savedAt).toLocaleString() : ''}">Saved</span>` : `<span class="pill" style="background:#EFEBE0; color:#7A7264;">Not saved</span>`}</td>
+    `;
+    tr.dataset.pf = s.pf; tr.dataset.esi = s.esi;
+    tbody.appendChild(tr);
+    recalcRow(tr.querySelector('.leaves-input'), month, year);
+  });
+  filterPayrollRows();
+}
+
+function filterPayrollRows(){
+  const search = document.getElementById('payrollSearch').value.toLowerCase().trim();
+  const rows = document.querySelectorAll('#payrollTableBody tr');
+  let visibleCount = 0;
+  rows.forEach(tr=>{
+    const match = !search || (tr.dataset.staffName || '').includes(search);
+    tr.style.display = match ? '' : 'none';
+    if(match) visibleCount++;
+  });
+  const emptyEl = document.getElementById('payrollEmpty');
+  if(rows.length > 0){
+    emptyEl.style.display = visibleCount ? 'none' : 'block';
+    emptyEl.querySelector('h3').textContent = visibleCount ? '' : 'No staff match your search';
+    emptyEl.querySelector('p').textContent = visibleCount ? '' : 'Try a different name.';
+  }
+}
+
+function recalcRow(el, monthOverride, yearOverride){
+  const tr = el.closest('tr');
+  const month = monthOverride ?? Number(document.getElementById('payrollMonth').value);
+  const year = yearOverride ?? Number(document.getElementById('payrollYear').value);
+  const base = Number(tr.querySelector('.base-cell').dataset.base);
+  const leaves = Number(tr.querySelector('.leaves-input').value)||0;
+  const overtime = Number(tr.querySelector('.overtime-input').value)||0;
+  const advance = Number(tr.querySelector('.advance-input').value)||0;
+  const pfPct = Number(tr.dataset.pf)||0;
+  const esiPct = Number(tr.dataset.esi)||0;
+
+  const dim = daysInMonth(month, year);
+  const perDay = base / dim;
+  const leaveDeduction = perDay * leaves;
+
+  let allowanceTotal = 0, deductionTotal = 0;
+  tr.querySelectorAll('.type-input').forEach(inp=>{
+    const typeId = inp.dataset.type;
+    const type = payrollTypesCache.find(t=>t.id===typeId);
+    const val = Number(inp.value)||0;
+    if(type?.kind==='deduction') deductionTotal += val; else allowanceTotal += val;
+  });
+
+  const pfAmount = base * pfPct/100;
+  const esiAmount = base * esiPct/100;
+
+  const net = base - leaveDeduction + overtime - advance + allowanceTotal - deductionTotal - pfAmount - esiAmount;
+
+  tr.querySelector('.pf-cell').textContent = fmtMoney(pfAmount);
+  tr.querySelector('.esi-cell').textContent = fmtMoney(esiAmount);
+  tr.querySelector('.net-cell').textContent = fmtMoney(net);
+}
+
+async function savePayrollTable(){
+  const month = Number(document.getElementById('payrollMonth').value);
+  const year = Number(document.getElementById('payrollYear').value);
+  const rows = document.querySelectorAll('#payrollTableBody tr');
+  if(!rows.length){ toast('Nothing to save'); return; }
+
+  const entries = [];
+  rows.forEach(tr=>{
+    const staffId = tr.dataset.staffId;
+    const values = {};
+    tr.querySelectorAll('.type-input').forEach(inp=>{ values[inp.dataset.type] = Number(inp.value)||0; });
+    entries.push({
+      staffId, month, year,
+      leaves: Number(tr.querySelector('.leaves-input').value)||0,
+      overtime: Number(tr.querySelector('.overtime-input').value)||0,
+      advance: Number(tr.querySelector('.advance-input').value)||0,
+      values,
+      netPay: parseFloat(tr.querySelector('.net-cell').textContent.replace(/[₹,]/g,'')),
+      savedAt: new Date().toISOString()
+    });
+  });
+  await savePayrollEntries(entries);
+  toast(`Payroll saved for ${MONTHS[month]} ${year} (${entries.length} staff)`);
+  await loadPayrollTable();
+}
+
+/* =========================================================
+   REPORTS VIEW
+========================================================= */
+document.querySelectorAll('.report-tabs button').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    document.querySelectorAll('.report-tabs button').forEach(b=>b.classList.toggle('active', b===btn));
+    document.querySelectorAll('.report-panel').forEach(p=>p.style.display = (p.id==='report-'+btn.dataset.report) ? 'block' : 'none');
+  });
+});
+
+async function initReportControls(){
+  populateMonthYear('summaryMonth','summaryYear');
+  populateMonthYear('bankMonth','bankYear');
+  populateMonthYear('cashMonth','cashYear');
+  populateMonthYear('payslipMonth','payslipYear');
+  populateMonthYear('yearlyYear','yearlyYear'); // year only used
+  const staffSel1 = document.getElementById('payslipStaff');
+  const staffSel2 = document.getElementById('yearlyStaff');
+  if(!staffSel1.dataset.filled){
+    const staff = await getStaff();
+    [staffSel1, staffSel2].forEach(sel=>{
+      staff.forEach(s=>{ const o = document.createElement('option'); o.value=s.id; o.textContent=s.name; sel.appendChild(o); });
+      sel.dataset.filled='1';
+    });
+  }
+  const branchSel = document.getElementById('stafflistBranch');
+  if(!branchSel.dataset.filled){
+    const branches = await getBranches();
+    branches.forEach(b=>{ const o = document.createElement('option'); o.value=b.id; o.textContent=b.name; branchSel.appendChild(o); });
+    branchSel.dataset.filled='1';
+  }
+  const designationSel = document.getElementById('stafflistDesignation');
+  if(!designationSel.dataset.filled){
+    const designations = await getDesignations();
+    designations.forEach(d=>{ const o = document.createElement('option'); o.value=d.id; o.textContent=d.name; designationSel.appendChild(o); });
+    designationSel.dataset.filled='1';
+  }
+  const instSel1 = document.getElementById('stafflistInst');
+  if(!instSel1.dataset.filled){
+    const institutions = await getInstitutions();
+    [document.getElementById('stafflistInst'), document.getElementById('summaryInst'), document.getElementById('bankInst'), document.getElementById('cashInst')].forEach(sel=>{
+      institutions.forEach(i=>{ const o = document.createElement('option'); o.value=i.id; o.textContent=i.name; sel.appendChild(o); });
+      sel.dataset.filled='1';
+    });
+  }
+  renderStaffListReport();
+  renderSummaryReport();
+}
+
+async function renderStaffListReport(){
+  const inst = document.getElementById('stafflistInst').value;
+  const branch = document.getElementById('stafflistBranch').value;
+  const designationFilter = document.getElementById('stafflistDesignation').value;
+  const status = document.getElementById('stafflistStatus').value;
+  const [staff, branches, institutions, designations] = await Promise.all([getStaff(), getBranches(), getInstitutions(), getDesignations()]);
+  const branchNameOf = id => (branches.find(b=>b.id===id) || {}).name || '—';
+  const instNameOf = id => (institutions.find(i=>i.id===id) || {}).name || '—';
+  const designationNameOf = id => (designations.find(d=>d.id===id) || {}).name || '—';
+
+  const rows = staff.filter(s=>{
+    return (!inst || s.institution===inst) && (!branch || s.branch===branch) && (!designationFilter || s.designation===designationFilter) && (!status || s.status===status);
+  });
+
+  let html = `<div class="print-only"><h2>Staff List${inst?' — '+instNameOf(inst):''}${branch?' — '+branchNameOf(branch):''}</h2>
+    <p style="color:#6B7280;font-size:13px;margin-bottom:16px;">Balaji Service Society</p></div>`;
+
+  if(!rows.length){
+    html += `<div class="empty-state"><h3>No staff found</h3><p>Try a different filter, or add staff in the Staff tab.</p></div>`;
+    document.getElementById('stafflistReportBody').innerHTML = html;
+    return;
+  }
+
+  html += `<div class="table-wrap"><table><thead><tr>
+    <th>ID</th><th>Name</th><th>Designation</th><th>Institution</th><th>Branch</th>
+    <th class="num">Base Salary</th><th>Bank Name</th><th>Bank A/C No.</th><th>Payment</th>
+    <th class="num">PF %</th><th class="num">ESI %</th><th>Contact</th><th>Date of Joining</th><th>Status</th>
+  </tr></thead><tbody>`;
+  rows.forEach(s=>{
+    html += `<tr>
+      <td class="mono">${s.id}</td>
+      <td>${s.name}</td>
+      <td>${designationNameOf(s.designation)}</td>
+      <td><span class="badge-inst">${instNameOf(s.institution)}</span></td>
+      <td>${branchNameOf(s.branch)}</td>
+      <td class="num mono">${fmtMoney(s.baseSalary)}</td>
+      <td>${s.bankName||'—'}</td>
+      <td class="mono">${s.bankAccount||'—'}</td>
+      <td><span class="pill ${(s.paymentMode||'Bank Transfer')==='Cash'?'pill-gold':'pill-green'}">${s.paymentMode||'Bank Transfer'}</span></td>
+      <td class="num mono">${s.pf}%</td>
+      <td class="num mono">${s.esi}%</td>
+      <td class="mono">${s.contact||'—'}</td>
+      <td>${formatDateDisplay(s.doj)}</td>
+      <td><span class="pill ${s.status==='Active'?'pill-green':'pill-red'}">${s.status}</span></td>
+    </tr>`;
+  });
+  html += `</tbody></table></div>
+    <div class="stat-row" style="margin-top:18px; grid-template-columns:1fr;">
+      <div class="stat-card"><div class="label">Total Staff Listed</div><div class="value">${rows.length}</div></div>
+    </div>`;
+  document.getElementById('stafflistReportBody').innerHTML = html;
+  document.getElementById('stafflistReportBody').dataset.rows = JSON.stringify(rows.map(s=>({
+    id:s.id, name:s.name, designation:designationNameOf(s.designation), institution:instNameOf(s.institution), branch:branchNameOf(s.branch),
+    baseSalary:s.baseSalary, bankName:s.bankName, bankAccount:s.bankAccount, paymentMode:s.paymentMode||'Bank Transfer', pf:s.pf, esi:s.esi,
+    contact:s.contact, doj:formatDateDisplay(s.doj), status:s.status
+  })));
+}
+function exportStaffListCSV(){
+  const rows = JSON.parse(document.getElementById('stafflistReportBody').dataset.rows || '[]');
+  if(!rows.length){ toast('Nothing to export'); return; }
+  let csv = 'ID,Name,Designation,Institution,Branch,Base Salary,Bank Name,Bank Account,Payment Mode,PF %,ESI %,Contact,Date of Joining,Status\n';
+  rows.forEach(r=>{
+    csv += `${csvCell(r.id)},${csvCell(r.name)},${csvCell(r.designation)},${csvCell(r.institution)},${csvCell(r.branch)},${r.baseSalary},${csvCell(r.bankName)},${csvCell(r.bankAccount)},${csvCell(r.paymentMode)},${r.pf},${r.esi},${csvCell(r.contact)},${csvCell(r.doj)},${csvCell(r.status)}\n`;
+  });
+  downloadCSV(csv, `staff_list_${Date.now()}.csv`);
+}
+
+async function computeEntryDetails(entry, staff, types){
+  const dim = daysInMonth(entry.month, entry.year);
+  const perDay = staff.baseSalary/dim;
+  const leaveDeduction = perDay*entry.leaves;
+  let allowanceTotal=0, deductionTotal=0;
+  const breakdown = [];
+  types.forEach(t=>{
+    const v = entry.values?.[t.id]||0;
+    if(v){
+      breakdown.push({name:t.name, kind:t.kind, amount:v});
+      if(t.kind==='deduction') deductionTotal+=v; else allowanceTotal+=v;
+    }
+  });
+  const pfAmount = staff.baseSalary*staff.pf/100;
+  const esiAmount = staff.baseSalary*staff.esi/100;
+  const net = staff.baseSalary - leaveDeduction + entry.overtime - entry.advance + allowanceTotal - deductionTotal - pfAmount - esiAmount;
+  return {perDay, leaveDeduction, allowanceTotal, deductionTotal, pfAmount, esiAmount, net, breakdown};
+}
+
+async function editPayrollFor(month, year, staffId){
+  switchView('payroll');
+  document.getElementById('payrollMonth').value = month;
+  document.getElementById('payrollYear').value = year;
+  await loadPayrollTable();
+  if(staffId){
+    const row = document.querySelector(`#payrollTableBody tr[data-staff-id="${staffId}"]`);
+    if(row){
+      row.scrollIntoView({behavior:'smooth', block:'center'});
+      row.style.outline = '2px solid var(--gold)';
+      setTimeout(()=>{ row.style.outline = ''; }, 2500);
+    }
+  }
+  toast(`Loaded ${MONTHS[month]} ${year} for editing`);
+}
+
+async function renderSummaryReport(){
+  const month = Number(document.getElementById('summaryMonth').value);
+  const year = Number(document.getElementById('summaryYear').value);
+  const inst = document.getElementById('summaryInst').value;
+  const [staff, types, entries, institutions] = await Promise.all([getStaff(), getTypes(), getPayrollEntries(), getInstitutions()]);
+  const instNameOf = id => (institutions.find(i=>i.id===id) || {}).name || '—';
+  const rows = entries.filter(e=>e.month===month && e.year===year)
+    .map(e=>({entry:e, staff: staff.find(s=>s.id===e.staffId)}))
+    .filter(r=>r.staff && (!inst || r.staff.institution===inst));
+
+  let html = `<div class="print-only"><h2>Monthly Payroll Summary — ${MONTHS[month]} ${year}${inst?' · '+instNameOf(inst):''}</h2><p style="color:#6B7280;font-size:13px;margin-bottom:16px;">Balaji Service Society</p></div>`;
+  if(!rows.length){
+    html += `<div class="empty-state"><h3>No payroll saved</h3><p>Run and save payroll for this month first.</p></div>`;
+    document.getElementById('summaryReportBody').innerHTML = html;
+    return;
+  }
+  let totalGross=0, totalNet=0, totalDeductions=0;
+  html += `<div class="table-wrap"><table><thead><tr>
+    <th>Staff</th><th>Institution</th><th class="num">Base</th><th class="num">Leaves</th>
+    <th class="num">Overtime</th><th class="num">Advance</th><th class="num">PF</th><th class="num">ESI</th>
+    <th class="num">Net Pay</th><th class="no-print"></th></tr></thead><tbody>`;
+  for(const r of rows){
+    const d = await computeEntryDetails(r.entry, r.staff, types);
+    totalGross += r.staff.baseSalary + r.entry.overtime + d.allowanceTotal;
+    totalDeductions += d.leaveDeduction + r.entry.advance + d.deductionTotal + d.pfAmount + d.esiAmount;
+    totalNet += d.net;
+    html += `<tr>
+      <td>${r.staff.name}</td>
+      <td><span class="badge-inst">${instNameOf(r.staff.institution)}</span></td>
+      <td class="num mono">${fmtMoney(r.staff.baseSalary)}</td>
+      <td class="num mono">${r.entry.leaves}</td>
+      <td class="num mono">${fmtMoney(r.entry.overtime)}</td>
+      <td class="num mono">${fmtMoney(r.entry.advance)}</td>
+      <td class="num mono">${fmtMoney(d.pfAmount)}</td>
+      <td class="num mono">${fmtMoney(d.esiAmount)}</td>
+      <td class="num mono net-figure">${fmtMoney(d.net)}</td>
+      <td class="no-print"><button class="btn btn-ghost btn-sm" onclick="editPayrollFor(${month},${year},'${r.staff.id}')">Edit</button></td>
+    </tr>`;
+  }
+  html += `</tbody></table></div>
+    <div class="stat-row" style="margin-top:18px;">
+      <div class="stat-card"><div class="label">Staff Paid</div><div class="value">${rows.length}</div></div>
+      <div class="stat-card"><div class="label">Total Deductions</div><div class="value mono">${fmtMoney(totalDeductions)}</div></div>
+      <div class="stat-card"><div class="label">Total Net Payout</div><div class="value mono">${fmtMoney(totalNet)}</div></div>
+    </div>`;
+  document.getElementById('summaryReportBody').innerHTML = html;
+  document.getElementById('summaryReportBody').dataset.rows = JSON.stringify(await Promise.all(rows.map(async r=>{
+    const d = await computeEntryDetails(r.entry, r.staff, types);
+    return {name:r.staff.name, institution:instNameOf(r.staff.institution), base:r.staff.baseSalary, leaves:r.entry.leaves, overtime:r.entry.overtime, advance:r.entry.advance, pf:d.pfAmount, esi:d.esiAmount, net:d.net};
+  })));
+}
+function exportSummaryCSV(){
+  const rows = JSON.parse(document.getElementById('summaryReportBody').dataset.rows || '[]');
+  if(!rows.length){ toast('Nothing to export'); return; }
+  let csv = 'Staff,Institution,Base,Leaves,Overtime,Advance,PF,ESI,Net Pay\n';
+  rows.forEach(r=>{ csv += `${csvCell(r.name)},${csvCell(r.institution)},${r.base},${r.leaves},${r.overtime},${r.advance},${r.pf.toFixed(2)},${r.esi.toFixed(2)},${r.net.toFixed(2)}\n`; });
+  downloadCSV(csv, `payroll_summary_${Date.now()}.csv`);
+}
+
+async function renderBankReport(){
+  const month = Number(document.getElementById('bankMonth').value);
+  const year = Number(document.getElementById('bankYear').value);
+  const inst = document.getElementById('bankInst').value;
+  const [staff, types, entries, institutions] = await Promise.all([getStaff(), getTypes(), getPayrollEntries(), getInstitutions()]);
+  const instNameOf = id => (institutions.find(i=>i.id===id) || {}).name || '—';
+  const allRows = entries.filter(e=>e.month===month && e.year===year)
+    .map(e=>({entry:e, staff: staff.find(s=>s.id===e.staffId)}))
+    .filter(r=>r.staff && (!inst || r.staff.institution===inst));
+  const rows = allRows.filter(r=>(r.staff.paymentMode||'Bank Transfer')==='Bank Transfer');
+  const cashCount = allRows.length - rows.length;
+
+  let html = `<div class="print-only"><h2>Salary Credit Advice — ${MONTHS[month]} ${year}${inst?' · '+instNameOf(inst):''}</h2>
+    <p style="color:#6B7280;font-size:13px;">To: The Branch Manager — Please credit the following salary amounts to the accounts listed below.</p></div>`;
+  if(cashCount > 0){
+    html += `<p class="no-print" style="font-size:12.5px; color:#6B7280; margin-bottom:12px;">${cashCount} staff paid by hand this month are excluded here — see the <strong>Cash Payments</strong> report tab.</p>`;
+  }
+  if(!rows.length){
+    html += `<div class="empty-state"><h3>No bank-transfer payroll saved</h3><p>Run and save payroll for this month first, or all staff for this filter are paid by hand.</p></div>`;
+    document.getElementById('bankReportBody').innerHTML = html;
+    return;
+  }
+  let total=0;
+  const csvRows = [];
+  html += `<div class="table-wrap"><table><thead><tr>
+    <th class="num">S.No</th><th>Staff Name</th><th>Bank Account Number</th><th class="num">Net Salary</th></tr></thead><tbody>`;
+  let i=1;
+  for(const r of rows){
+    const d = await computeEntryDetails(r.entry, r.staff, types);
+    total += d.net;
+    html += `<tr><td class="num mono">${i}</td><td>${r.staff.name}</td><td class="mono">${r.staff.bankAccount}</td><td class="num mono">${fmtMoney(d.net)}</td></tr>`;
+    csvRows.push({sno:i, name:r.staff.name, acc:r.staff.bankAccount, net:d.net});
+    i++;
+  }
+  html += `</tbody><tfoot><tr><td colspan="3" style="text-align:right;font-weight:700;">Total</td><td class="num mono" style="font-weight:700;">${fmtMoney(total)}</td></tr></tfoot></table></div>`;
+  document.getElementById('bankReportBody').innerHTML = html;
+  document.getElementById('bankReportBody').dataset.rows = JSON.stringify(csvRows);
+}
+function exportBankCSV(){
+  const rows = JSON.parse(document.getElementById('bankReportBody').dataset.rows || '[]');
+  if(!rows.length){ toast('Nothing to export'); return; }
+  let csv = 'Serial Number,Staff Name,Bank Account Number,Net Salary\n';
+  rows.forEach(r=>{ csv += `${r.sno},${csvCell(r.name)},${csvCell(r.acc)},${r.net.toFixed(2)}\n`; });
+  downloadCSV(csv, `bank_report_${Date.now()}.csv`);
+}
+
+async function renderCashReport(){
+  const month = Number(document.getElementById('cashMonth').value);
+  const year = Number(document.getElementById('cashYear').value);
+  const inst = document.getElementById('cashInst').value;
+  const [staff, types, entries, institutions, designations] = await Promise.all([getStaff(), getTypes(), getPayrollEntries(), getInstitutions(), getDesignations()]);
+  const instNameOf = id => (institutions.find(i=>i.id===id) || {}).name || '—';
+  const designationNameOf = id => (designations.find(d=>d.id===id) || {}).name || '—';
+  const rows = entries.filter(e=>e.month===month && e.year===year)
+    .map(e=>({entry:e, staff: staff.find(s=>s.id===e.staffId)}))
+    .filter(r=>r.staff && (!inst || r.staff.institution===inst) && (r.staff.paymentMode||'Bank Transfer')==='Cash');
+
+  let html = `<div class="print-only"><h2>Cash Payment Register — ${MONTHS[month]} ${year}${inst?' · '+instNameOf(inst):''}</h2>
+    <p style="color:#6B7280;font-size:13px;">Salaries paid by hand — for manual disbursement record-keeping.</p></div>`;
+  if(!rows.length){
+    html += `<div class="empty-state"><h3>No cash payroll saved</h3><p>Run and save payroll for this month first, or no staff here are marked as Cash payment.</p></div>`;
+    document.getElementById('cashReportBody').innerHTML = html;
+    return;
+  }
+  let total=0;
+  const csvRows = [];
+  html += `<div class="table-wrap"><table><thead><tr>
+    <th class="num">S.No</th><th>Staff Name</th><th>Designation</th><th class="num">Net Salary</th><th>Signature</th></tr></thead><tbody>`;
+  let i=1;
+  for(const r of rows){
+    const d = await computeEntryDetails(r.entry, r.staff, types);
+    total += d.net;
+    html += `<tr><td class="num mono">${i}</td><td>${r.staff.name}</td><td>${designationNameOf(r.staff.designation)}</td><td class="num mono">${fmtMoney(d.net)}</td><td class="print-only" style="min-width:100px;"></td></tr>`;
+    csvRows.push({sno:i, name:r.staff.name, designation:designationNameOf(r.staff.designation), net:d.net});
+    i++;
+  }
+  html += `</tbody><tfoot><tr><td colspan="3" style="text-align:right;font-weight:700;">Total</td><td class="num mono" style="font-weight:700;">${fmtMoney(total)}</td><td></td></tr></tfoot></table></div>`;
+  document.getElementById('cashReportBody').innerHTML = html;
+  document.getElementById('cashReportBody').dataset.rows = JSON.stringify(csvRows);
+}
+function exportCashCSV(){
+  const rows = JSON.parse(document.getElementById('cashReportBody').dataset.rows || '[]');
+  if(!rows.length){ toast('Nothing to export'); return; }
+  let csv = 'Serial Number,Staff Name,Designation,Net Salary\n';
+  rows.forEach(r=>{ csv += `${r.sno},${csvCell(r.name)},${csvCell(r.designation)},${r.net.toFixed(2)}\n`; });
+  downloadCSV(csv, `cash_report_${Date.now()}.csv`);
+}
+/**
+ * Safely escapes a value for a CSV cell. Without this, any name, designation,
+ * or bank name containing a comma (e.g. "Rao, Venkata") would silently split
+ * into extra columns when the file is opened in Excel/Sheets.
+ */
+function csvCell(value){
+  const str = (value === null || value === undefined) ? '' : String(value);
+  if(/[",\n]/.test(str)){
+    return '"' + str.replace(/"/g, '""') + '"';
+  }
+  return str;
+}
+function downloadCSV(csv, filename){
+  const blob = new Blob([csv], {type:'text/csv'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href=url; a.download=filename; a.click();
+  URL.revokeObjectURL(url);
+}
+
+function amountToWordsINR(num){
+  num = Math.round(num);
+  const isNegative = num < 0;
+  num = Math.abs(num);
+  if(num === 0) return 'Zero Rupees Only';
+  const ones = ['','One','Two','Three','Four','Five','Six','Seven','Eight','Nine','Ten','Eleven','Twelve','Thirteen','Fourteen','Fifteen','Sixteen','Seventeen','Eighteen','Nineteen'];
+  const tens = ['','','Twenty','Thirty','Forty','Fifty','Sixty','Seventy','Eighty','Ninety'];
+  function twoDigits(n){
+    if(n < 20) return ones[n];
+    return tens[Math.floor(n/10)] + (n%10 ? ' ' + ones[n%10] : '');
+  }
+  function threeDigits(n){
+    if(n < 100) return twoDigits(n);
+    return ones[Math.floor(n/100)] + ' Hundred' + (n%100 ? ' ' + twoDigits(n%100) : '');
+  }
+  let n = num;
+  const crore = Math.floor(n / 10000000); n %= 10000000;
+  const lakh = Math.floor(n / 100000); n %= 100000;
+  const thousand = Math.floor(n / 1000); n %= 1000;
+  const hundred = n;
+  let parts = [];
+  if(crore) parts.push(threeDigits(crore) + ' Crore');
+  if(lakh) parts.push(threeDigits(lakh) + ' Lakh');
+  if(thousand) parts.push(threeDigits(thousand) + ' Thousand');
+  if(hundred) parts.push(threeDigits(hundred));
+  return (isNegative ? 'Minus ' : '') + parts.join(' ') + ' Rupees Only';
+}
+
+async function renderPayslip(){
+  const staffId = document.getElementById('payslipStaff').value;
+  const month = Number(document.getElementById('payslipMonth').value);
+  const year = Number(document.getElementById('payslipYear').value);
+  const [staff, types, entries, institutions, branches, designations] = await Promise.all([getStaff(), getTypes(), getPayrollEntries(), getInstitutions(), getBranches(), getDesignations()]);
+  const instNameOf = id => (institutions.find(i=>i.id===id) || {}).name || '—';
+  const branchNameOf = id => (branches.find(b=>b.id===id) || {}).name || '—';
+  const designationNameOf = id => (designations.find(d=>d.id===id) || {}).name || '—';
+  const s = staff.find(x=>x.id===staffId);
+  const entry = entries.find(e=>e.staffId===staffId && e.month===month && e.year===year);
+  const body = document.getElementById('payslipBody');
+  if(!s || !entry){ body.innerHTML = `<div class="empty-state"><h3>No payroll record</h3><p>No saved payroll for this staff member in ${MONTHS[month]} ${year}.</p></div>`; return; }
+  const d = await computeEntryDetails(entry, s, types);
+  const grossEarnings = s.baseSalary + entry.overtime + d.allowanceTotal;
+  const totalDeductions = d.leaveDeduction + entry.advance + d.deductionTotal + d.pfAmount + d.esiAmount;
+
+  body.innerHTML = `
+    <div class="no-print" style="text-align:right; margin-bottom:10px;">
+      <button class="btn btn-ghost btn-sm" onclick="editPayrollFor(${month},${year},'${s.id}')">Edit this month's entry</button>
+    </div>
+
+    <div class="payslip-sheet">
+      <div class="payslip-letterhead">
+        <h2>Balaji Service Society</h2>
+        <div class="payslip-inst">${instNameOf(s.institution)}${s.branch ? ' — ' + branchNameOf(s.branch) : ''}</div>
+        <div class="payslip-period">Payslip for ${MONTHS[month]} ${year}</div>
+      </div>
+
+      <div class="payslip-info-grid">
+        <div><label>Employee Name</label><div>${s.name}</div></div>
+        <div><label>Employee ID</label><div class="mono">${s.id}</div></div>
+        <div><label>Designation</label><div>${designationNameOf(s.designation)}</div></div>
+        <div><label>Date of Joining</label><div>${formatDateDisplay(s.doj)}</div></div>
+        <div><label>Institution</label><div>${instNameOf(s.institution)}</div></div>
+        <div><label>Branch</label><div>${branchNameOf(s.branch)}</div></div>
+        <div><label>Payment Mode</label><div>${s.paymentMode||'Bank Transfer'}</div></div>
+        <div><label>Bank Account</label><div class="mono">${(s.paymentMode||'Bank Transfer')==='Cash' ? '— (Paid by hand)' : (s.bankAccount||'—')}</div></div>
+      </div>
+
+      <table class="payslip-table">
+        <thead><tr><th>Earnings</th><th class="num">Amount</th><th>Deductions</th><th class="num">Amount</th></tr></thead>
+        <tbody>
+          <tr><td>Base Salary</td><td class="num mono">${fmtMoney(s.baseSalary)}</td><td>Leave Deduction (${entry.leaves} day${entry.leaves===1?'':'s'})</td><td class="num mono">${fmtMoney(d.leaveDeduction)}</td></tr>
+          <tr><td>Overtime</td><td class="num mono">${fmtMoney(entry.overtime)}</td><td>Advance</td><td class="num mono">${fmtMoney(entry.advance)}</td></tr>
+          ${d.breakdown.map(b=>`<tr><td>${b.kind==='allowance'?b.name:''}</td><td class="num mono">${b.kind==='allowance'?fmtMoney(b.amount):''}</td><td>${b.kind==='deduction'?b.name:''}</td><td class="num mono">${b.kind==='deduction'?fmtMoney(b.amount):''}</td></tr>`).join('')}
+          <tr><td></td><td></td><td>PF (${s.pf}%)</td><td class="num mono">${fmtMoney(d.pfAmount)}</td></tr>
+          <tr><td></td><td></td><td>ESI (${s.esi}%)</td><td class="num mono">${fmtMoney(d.esiAmount)}</td></tr>
+        </tbody>
+        <tfoot>
+          <tr class="payslip-subtotal"><td>Gross Earnings</td><td class="num mono">${fmtMoney(grossEarnings)}</td><td>Total Deductions</td><td class="num mono">${fmtMoney(totalDeductions)}</td></tr>
+        </tfoot>
+      </table>
+
+      <div class="payslip-netpay">
+        <div class="payslip-netpay-label">Net Pay</div>
+        <div class="payslip-netpay-amount mono">${fmtMoney(d.net)}</div>
+        <div class="payslip-netpay-words">${amountToWordsINR(d.net)}</div>
+      </div>
+
+      <div class="payslip-signrow">
+        <div class="payslip-sign-box">
+          <div class="payslip-sign-line"></div>
+          <div class="payslip-sign-label">Employee Signature</div>
+        </div>
+        <div class="payslip-seal-box">
+          <div class="payslip-seal-placeholder">Seal</div>
+        </div>
+        <div class="payslip-sign-box">
+          <div class="payslip-sign-line"></div>
+          <div class="payslip-sign-label">Authorized Signatory<br><span style="font-weight:400;">For Balaji Service Society</span></div>
+        </div>
+      </div>
+
+      <div class="payslip-footnote">This is a system-generated payslip and does not require a physical signature if issued electronically.</div>
+    </div>
+  `;
+}
+
+async function renderYearly(){
+  const staffId = document.getElementById('yearlyStaff').value;
+  const year = Number(document.getElementById('yearlyYear').value);
+  const [staff, types, entries] = await Promise.all([getStaff(), getTypes(), getPayrollEntries()]);
+  const s = staff.find(x=>x.id===staffId);
+  const body = document.getElementById('yearlyBody');
+  if(!s){ body.innerHTML=''; return; }
+  let html = `<div class="print-only"><h2>Yearly Payroll — ${s.name} — ${year}</h2></div>
+    <div class="table-wrap"><table><thead><tr><th>Month</th><th class="num">Leaves</th><th class="num">Overtime</th><th class="num">Advance</th><th class="num">PF</th><th class="num">ESI</th><th class="num">Net Pay</th></tr></thead><tbody>`;
+  let totalNet = 0, monthsPaid = 0;
+  for(let m=0;m<12;m++){
+    const entry = entries.find(e=>e.staffId===staffId && e.month===m && e.year===year);
+    if(!entry){ html += `<tr><td>${MONTHS[m]}</td><td colspan="6" style="color:#9CA3AF;">Not run</td></tr>`; continue; }
+    const d = await computeEntryDetails(entry, s, types);
+    totalNet += d.net; monthsPaid++;
+    html += `<tr><td>${MONTHS[m]}</td><td class="num mono">${entry.leaves}</td><td class="num mono">${fmtMoney(entry.overtime)}</td><td class="num mono">${fmtMoney(entry.advance)}</td><td class="num mono">${fmtMoney(d.pfAmount)}</td><td class="num mono">${fmtMoney(d.esiAmount)}</td><td class="num mono net-figure">${fmtMoney(d.net)}</td></tr>`;
+  }
+  html += `</tbody></table></div>
+    <div class="stat-row" style="margin-top:18px;">
+      <div class="stat-card"><div class="label">Months Paid</div><div class="value">${monthsPaid}</div></div>
+      <div class="stat-card"><div class="label">Total Net Paid (${year})</div><div class="value mono">${fmtMoney(totalNet)}</div></div>
+    </div>`;
+  body.innerHTML = html;
+}
+
+/* =========================================================
+   SETTINGS VIEW
+========================================================= */
+async function initSettings(){
+  const types = await getTypes();
+  renderTypesList(types);
+  const branches = await getBranches();
+  renderBranchesList(branches);
+  const institutions = await getInstitutions();
+  renderInstitutionsList(institutions);
+  const designations = await getDesignations();
+  renderDesignationsList(designations);
+  const users = await getUsers();
+  renderUsersList(users);
+  const d = getDefaults();
+  document.getElementById('defaultPF').value = d.pf;
+  document.getElementById('defaultESI').value = d.esi;
+  document.getElementById('apiUrlInput').value = API_URL;
+  updateConnectionStatus();
+}
+function renderTypesList(types){
+  const el = document.getElementById('typesList');
+  if(!types.length){ el.innerHTML = '<p style="color:#6B7280;font-size:13px;">No allowance/deduction types yet. Add one below.</p>'; return; }
+  el.innerHTML = types.map(t=>`
+    <div class="type-row">
+      <div><span class="type-name">${t.name}</span> <span class="pill ${t.kind==='allowance'?'pill-green':'pill-red'}">${t.kind}</span></div>
+      <button class="btn btn-ghost btn-sm" onclick="removeType('${t.id}')">Remove</button>
+    </div>
+  `).join('');
+}
+function renderUsersList(users){
+  const el = document.getElementById('usersList');
+  if(!users.length){ el.innerHTML = '<p style="color:#6B7280;font-size:13px;">No users yet — add one below (you\'ll need at least one to sign in).</p>'; return; }
+  el.innerHTML = users.map(u=>`
+    <div class="type-row">
+      <div><span class="type-name">${u.name || u.username}</span> <span style="color:#6B7280; font-size:12px;">@${u.username}</span></div>
+      <button class="btn btn-ghost btn-sm" onclick="removeUser('${u.username}')">Remove</button>
+    </div>
+  `).join('');
+}
+async function addUser(){
+  const name = document.getElementById('newUserName').value.trim();
+  const username = document.getElementById('newUserUsername').value.trim();
+  const password = document.getElementById('newUserPassword').value;
+  if(!username || !password){ toast('Enter a username and password'); return; }
+  const users = await getUsers();
+  if(users.some(u=>u.username===username)){ toast('That username already exists'); return; }
+  users.push({username, password, name, active:true});
+  await saveUsersRemote(users);
+  document.getElementById('newUserName').value='';
+  document.getElementById('newUserUsername').value='';
+  document.getElementById('newUserPassword').value='';
+  renderUsersList(users);
+  toast('User added');
+}
+async function removeUser(username){
+  let users = await getUsers();
+  if(users.length <= 1){
+    toast('⚠ Cannot remove the last user — you\'d be locked out. Add another user first.');
+    return;
+  }
+  users = users.filter(u=>u.username!==username);
+  await saveUsersRemote(users);
+  renderUsersList(users);
+  toast('User removed');
+}
+function renderInstitutionsList(institutions){
+  const el = document.getElementById('institutionsList');
+  if(!institutions.length){ el.innerHTML = '<p style="color:#6B7280;font-size:13px;">No institutions yet. Add one below.</p>'; return; }
+  el.innerHTML = institutions.map(i=>`
+    <div class="type-row">
+      <div><span class="type-name">${i.name}</span></div>
+      <button class="btn btn-ghost btn-sm" onclick="removeInstitution('${i.id}')">Remove</button>
+    </div>
+  `).join('');
+}
+async function addInstitution(){
+  const name = document.getElementById('newInstitutionName').value.trim();
+  if(!name){ toast('Enter an institution name'); return; }
+  const institutions = await getInstitutions();
+  const id = 'I' + String(Date.now()).slice(-6);
+  institutions.push({id, name, active:true});
+  await saveInstitutionsRemote(institutions);
+  document.getElementById('newInstitutionName').value='';
+  renderInstitutionsList(institutions);
+  toast('Institution added');
+}
+async function removeInstitution(id){
+  let institutions = await getInstitutions();
+  institutions = institutions.filter(i=>i.id!==id);
+  await saveInstitutionsRemote(institutions);
+  renderInstitutionsList(institutions);
+  toast('Institution removed');
+}
+function renderDesignationsList(designations){
+  const el = document.getElementById('designationsList');
+  if(!designations.length){ el.innerHTML = '<p style="color:#6B7280;font-size:13px;">No designations yet. Add one below.</p>'; return; }
+  el.innerHTML = designations.map(d=>`
+    <div class="type-row">
+      <div><span class="type-name">${d.name}</span></div>
+      <button class="btn btn-ghost btn-sm" onclick="removeDesignation('${d.id}')">Remove</button>
+    </div>
+  `).join('');
+}
+async function addDesignation(){
+  const name = document.getElementById('newDesignationName').value.trim();
+  if(!name){ toast('Enter a designation name'); return; }
+  const designations = await getDesignations();
+  const id = 'D' + String(Date.now()).slice(-6);
+  designations.push({id, name, active:true});
+  await saveDesignationsRemote(designations);
+  document.getElementById('newDesignationName').value='';
+  renderDesignationsList(designations);
+  toast('Designation added');
+}
+async function removeDesignation(id){
+  let designations = await getDesignations();
+  designations = designations.filter(d=>d.id!==id);
+  await saveDesignationsRemote(designations);
+  renderDesignationsList(designations);
+  toast('Designation removed');
+}
+function renderBranchesList(branches){
+  const el = document.getElementById('branchesList');
+  if(!branches.length){ el.innerHTML = '<p style="color:#6B7280;font-size:13px;">No branches yet. Add one below.</p>'; return; }
+  el.innerHTML = branches.map(b=>`
+    <div class="type-row">
+      <div><span class="type-name">${b.name}</span></div>
+      <button class="btn btn-ghost btn-sm" onclick="removeBranch('${b.id}')">Remove</button>
+    </div>
+  `).join('');
+}
+async function addBranch(){
+  const name = document.getElementById('newBranchName').value.trim();
+  if(!name){ toast('Enter a branch name'); return; }
+  const branches = await getBranches();
+  const id = 'B' + String(Date.now()).slice(-6);
+  branches.push({id, name, active:true});
+  await saveBranchesRemote(branches);
+  document.getElementById('newBranchName').value='';
+  renderBranchesList(branches);
+  toast('Branch added');
+}
+async function removeBranch(id){
+  let branches = await getBranches();
+  branches = branches.filter(b=>b.id!==id);
+  await saveBranchesRemote(branches);
+  renderBranchesList(branches);
+  toast('Branch removed');
+}
+async function addType(){
+  const name = document.getElementById('newTypeName').value.trim();
+  if(!name){ toast('Enter a type name'); return; }
+  const kind = document.getElementById('newTypeKind').value;
+  const types = await getTypes();
+  const id = 'T' + String(Date.now()).slice(-6);
+  types.push({id, name, kind, active:true});
+  await saveTypesRemote(types);
+  document.getElementById('newTypeName').value='';
+  renderTypesList(types);
+  toast('Type added');
+}
+async function removeType(id){
+  let types = await getTypes();
+  types = types.filter(t=>t.id!==id);
+  await saveTypesRemote(types);
+  renderTypesList(types);
+  toast('Type removed');
+}
+function saveDefaults(){
+  setDefaults({ pf: Number(document.getElementById('defaultPF').value)||0, esi: Number(document.getElementById('defaultESI').value)||0 });
+  toast('Defaults saved');
+}
+function saveApiUrl(){
+  const url = document.getElementById('apiUrlInput').value.trim();
+  API_URL = url;
+  localStorage.setItem('payroll_api_url', url);
+  updateConnectionStatus();
+  toast(url ? 'Connected to your Google Sheet' : 'Switched to demo mode');
+  renderStaffTable();
+}
+function useDemoMode(){
+  API_URL = '';
+  localStorage.setItem('payroll_api_url', '__DEMO__');
+  document.getElementById('apiUrlInput').value = '';
+  updateConnectionStatus();
+  toast('Demo mode active');
+  renderStaffTable();
+}
+function updateConnectionStatus(){
+  const el = document.getElementById('connectionStatus');
+  const banner = document.getElementById('configBannerText');
+  if(API_URL){
+    el.innerHTML = `<span class="pill pill-green">Connected</span> Using live Google Sheet.`;
+    banner.innerHTML = `Connected to your Google Sheet.`;
+  } else {
+    el.innerHTML = `<span class="pill pill-gold">Demo Mode</span> Data is stored only in this browser.`;
+    banner.innerHTML = `Demo mode — data is stored in this browser only. Connect your Google Sheet in <strong>Settings → Connection</strong> to go live.`;
+  }
+}
+function resetDemoData(){
+  if(!confirm('This will erase all demo data in this browser and reload sample staff. Continue?')) return;
+  Object.values(LS_KEYS).forEach(k=>localStorage.removeItem(k));
+  seedDemoData();
+  toast('Demo data reset');
+  renderStaffTable();
+}
+
+window.addEventListener('unhandledrejection', (event)=>{
+  if(event.reason && event.reason.message && event.reason.message !== 'demo'){
+    toast('⚠ ' + event.reason.message);
+  }
+});
+
+/* =========================================================
+   AUTH / LOGIN
+========================================================= */
+const AUTH_SESSION_KEY = 'payroll_logged_in_user';
+
+async function attemptLogin(){
+  const username = document.getElementById('loginUsername').value.trim();
+  const password = document.getElementById('loginPassword').value;
+  const errEl = document.getElementById('loginError');
+  errEl.style.display = 'none';
+  if(!username || !password){ errEl.textContent = 'Please enter a username and password.'; errEl.style.display='block'; return; }
+  let users;
+  try{
+    users = await getUsers();
+  } catch(e){
+    errEl.textContent = 'Could not reach the Google Sheet to verify login. Check your connection.';
+    errEl.style.display = 'block';
+    return;
+  }
+  const match = users.find(u => u.username === username && String(u.password) === password && u.active !== false);
+  if(!match){
+    errEl.textContent = 'Incorrect username or password.';
+    errEl.style.display = 'block';
+    return;
+  }
+  sessionStorage.setItem(AUTH_SESSION_KEY, JSON.stringify({username: match.username, name: match.name || match.username}));
+  enterApp(match);
+}
+
+function logout(){
+  sessionStorage.removeItem(AUTH_SESSION_KEY);
+  location.reload();
+}
+
+function enterApp(user){
+  document.getElementById('loginScreen').style.display = 'none';
+  document.getElementById('appRoot').style.display = 'block';
+  document.getElementById('loggedInAs').textContent = user.name ? `Signed in as ${user.name}` : '';
+  renderStaffTable();
+  updateConnectionStatus();
+}
+
+function checkLoginOnLoad(){
+  const stored = sessionStorage.getItem(AUTH_SESSION_KEY);
+  if(stored){
+    try{ enterApp(JSON.parse(stored)); return; } catch(e){ sessionStorage.removeItem(AUTH_SESSION_KEY); }
+  }
+  document.getElementById('loginScreen').style.display = 'flex';
+  document.getElementById('appRoot').style.display = 'none';
+}
+
+/* =========================================================
+   INIT
+========================================================= */
+checkLoginOnLoad();
+
+</script>
+
+</body>
+</html>
