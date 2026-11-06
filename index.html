@@ -383,23 +383,23 @@
     <div class="card">
       <div class="toolbar">
         <div class="search-box">
-          <input type="text" id="staffSearch" placeholder="Search by name or designation…" oninput="renderStaffTable()">
+          <input type="text" id="staffSearch" placeholder="Search by name or designation…" oninput="renderStaffTable(false)">
         </div>
-        <select id="staffInstFilter" onchange="renderStaffTable()">
+        <select id="staffInstFilter" onchange="renderStaffTable(false)">
           <option value="">All Institutions</option>
         </select>
-        <select id="staffBranchFilter" onchange="renderStaffTable()">
+        <select id="staffBranchFilter" onchange="renderStaffTable(false)">
           <option value="">All Branches</option>
         </select>
-        <select id="staffDesignationFilter" onchange="renderStaffTable()">
+        <select id="staffDesignationFilter" onchange="renderStaffTable(false)">
           <option value="">All Designations</option>
         </select>
-        <select id="staffPaymentFilter" onchange="renderStaffTable()">
+        <select id="staffPaymentFilter" onchange="renderStaffTable(false)">
           <option value="">All Payment Modes</option>
           <option value="Bank Transfer">Bank Transfer</option>
           <option value="Cash">Cash</option>
         </select>
-        <select id="staffStatusFilter" onchange="renderStaffTable()">
+        <select id="staffStatusFilter" onchange="renderStaffTable(false)">
           <option value="Active">Active only</option>
           <option value="">All statuses</option>
           <option value="Inactive">Inactive only</option>
@@ -437,15 +437,15 @@
       <div class="toolbar">
         <div class="field" style="margin:0; min-width:140px;">
           <label>Month</label>
-          <select id="payrollMonth"></select>
+          <select id="payrollMonth" onchange="onPayrollPeriodChange(this)"></select>
         </div>
         <div class="field" style="margin:0; min-width:110px;">
           <label>Year</label>
-          <select id="payrollYear"></select>
+          <select id="payrollYear" onchange="onPayrollPeriodChange(this)"></select>
         </div>
         <div class="field" style="margin:0; min-width:160px;">
           <label>Institution</label>
-          <select id="payrollInstFilter">
+          <select id="payrollInstFilter" onchange="onPayrollPeriodChange(this)">
             <option value="">All Institutions</option>
           </select>
         </div>
@@ -453,7 +453,7 @@
           <label>Search Staff</label>
           <input type="text" id="payrollSearch" placeholder="Search by name…" style="width:100%;" oninput="filterPayrollRows()">
         </div>
-        <button class="btn btn-ghost" style="align-self:flex-end;" onclick="loadPayrollTable()">Load</button>
+        <button class="btn btn-ghost" style="align-self:flex-end;" onclick="confirmDiscardPayrollEdits() && loadPayrollTable()">Load</button>
         <div style="flex:1;"></div>
         <button class="btn btn-primary" style="align-self:flex-end;" onclick="savePayrollTable()">Save Payroll for Month</button>
       </div>
@@ -600,7 +600,7 @@
     <div class="card">
       <h3 style="margin-bottom:4px;">Login &amp; Users</h3>
       <p class="sub" style="margin-bottom:6px;">Manage who can sign in to this app. Anyone in this list can log in with their username and password.</p>
-      <p class="sub" style="margin-bottom:14px; color:#B3432B;">⚠ This is basic access control, not enterprise-grade security — passwords are stored as plain text in your Google Sheet and checked in the browser. Don't reuse an important password here, and keep edit access to the Sheet itself limited to people you trust.</p>
+      <p class="sub" style="margin-bottom:14px; color:#6B551A;">Passwords are checked by the Google Sheet and stored there only as scrambled (hashed) values — nobody, including admins, can read them back. A forgotten password can be reset here. Keep edit access to the Sheet itself limited to people you trust.</p>
       <div id="usersList"></div>
       <div class="grid grid-3" style="margin-top:16px; align-items:end;">
         <div class="field" style="margin:0;">
@@ -838,16 +838,28 @@ function lsSet(key, val){ localStorage.setItem(key, JSON.stringify(val)); }
    Swap these functions' internals once your Apps Script is live;
    the rest of the app only calls these.
 ========================================================= */
+function sessionToken(){
+  try{ return (JSON.parse(sessionStorage.getItem(AUTH_SESSION_KEY) || '{}')).token || ''; }
+  catch(e){ return ''; }
+}
 async function apiCall(action, payload){
   if(!API_URL){ throw new Error('demo'); }
   const res = await fetch(API_URL, {
     method:'POST',
     cache:'no-store',
-    body: JSON.stringify({action, payload})
+    body: JSON.stringify({action, payload, token: sessionToken()})
   });
   if(!res.ok) throw new Error('Google Sheet request failed: ' + res.status);
   const json = await res.json();
-  if(json.ok === false) throw new Error(json.error || 'Google Sheet returned an error');
+  if(json.ok === false){
+    const msg = String(json.error || 'Google Sheet returned an error');
+    if(msg.indexOf('AUTH_REQUIRED') === 0){
+      const clean = msg.replace(/^AUTH_REQUIRED:\s*/, '');
+      showLoginAgain(clean);
+      throw new Error(clean);
+    }
+    throw new Error(msg);
+  }
   return json;
 }
 
@@ -855,8 +867,11 @@ async function getStaff(){
   if(!API_URL) return lsGet(LS_KEYS.staff);
   const r = await apiCall('getStaff'); return r.data;
 }
+/** staff._new marks a brand-new record: the Sheet then assigns a fresh ID
+ *  if the suggested one is already taken, instead of overwriting anyone. */
 async function upsertStaff(staff){
   if(!API_URL){
+    staff = Object.assign({}, staff); delete staff._new;
     const all = lsGet(LS_KEYS.staff);
     const idx = all.findIndex(s=>s.id===staff.id);
     if(idx>-1) all[idx]=staff; else all.push(staff);
@@ -931,13 +946,20 @@ document.querySelectorAll('nav.tabs button').forEach(btn=>{
   btn.addEventListener('click', ()=>switchView(btn.dataset.view));
 });
 function switchView(view){
+  const current = document.querySelector('.view.active');
+  if(current && current.id==='view-payroll' && view!=='payroll' && !confirmDiscardPayrollEdits()) return Promise.resolve(false);
+  if(view!=='payroll') payrollDirty = false;
   document.querySelectorAll('nav.tabs button').forEach(b=>b.classList.toggle('active', b.dataset.view===view));
   document.querySelectorAll('.view').forEach(v=>v.classList.toggle('active', v.id==='view-'+view));
-  if(view==='staff') renderStaffTable();
-  if(view==='payroll') initPayrollControls();
-  if(view==='reports') initReportControls();
-  if(view==='settings') initSettings();
+  if(view==='staff') return renderStaffTable();
+  if(view==='payroll') return initPayrollControls();
+  if(view==='reports') return initReportControls();
+  if(view==='settings') return initSettings();
+  return Promise.resolve();
 }
+window.addEventListener('beforeunload', e=>{
+  if(payrollDirty){ e.preventDefault(); e.returnValue = ''; }
+});
 
 function toast(msg){
   const t = document.getElementById('toast');
@@ -950,6 +972,26 @@ function fmtMoney(n){
   return '₹' + n.toLocaleString('en-IN', {minimumFractionDigits:2, maximumFractionDigits:2});
 }
 function daysInMonth(month, year){ return new Date(year, month+1, 0).getDate(); }
+
+/** Escapes text before it goes into innerHTML, so a name like "<b>" or a
+ *  crafted Excel cell can't inject markup or script into the page. */
+function esc(value){
+  return String(value === null || value === undefined ? '' : value)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+/** Safe argument for an inline onclick="fn(...)" handler. */
+function jsArg(value){ return esc(JSON.stringify(String(value))); }
+/** Removed institutions/branches/designations/types are kept with
+ *  active:false (never deleted) so old payslips and staff records still
+ *  resolve their names and amounts. */
+function isActive(item){
+  return !(item.active === false || String(item.active).toLowerCase() === 'false');
+}
+/** Month/year may come back from the Sheet as numbers or as text. */
+function isEntryFor(e, month, year){
+  return Number(e.month) === month && Number(e.year) === year;
+}
 
 /**
  * Normalizes any date value coming back from the Sheet (which may arrive as a
@@ -985,26 +1027,23 @@ let staffCache = [];
 let branchCache = [];
 let institutionCache = [];
 let designationCache = [];
+/** Refills a filter dropdown with active items, keeping the current choice. */
+function fillFilterSelect(sel, allLabel, items){
+  const current = sel.value;
+  sel.innerHTML = `<option value="">${allLabel}</option>` + items.filter(isActive).map(x=>`<option value="${esc(x.id)}">${esc(x.name)}</option>`).join('');
+  sel.value = current;
+}
 async function populateBranchFilter(){
   branchCache = await getBranches();
-  const sel = document.getElementById('staffBranchFilter');
-  const current = sel.value;
-  sel.innerHTML = '<option value="">All Branches</option>' + branchCache.map(b=>`<option value="${b.id}">${b.name}</option>`).join('');
-  sel.value = current;
+  fillFilterSelect(document.getElementById('staffBranchFilter'), 'All Branches', branchCache);
 }
 async function populateInstitutionFilter(){
   institutionCache = await getInstitutions();
-  const sel = document.getElementById('staffInstFilter');
-  const current = sel.value;
-  sel.innerHTML = '<option value="">All Institutions</option>' + institutionCache.map(i=>`<option value="${i.id}">${i.name}</option>`).join('');
-  sel.value = current;
+  fillFilterSelect(document.getElementById('staffInstFilter'), 'All Institutions', institutionCache);
 }
 async function populateDesignationFilter(){
   designationCache = await getDesignations();
-  const sel = document.getElementById('staffDesignationFilter');
-  const current = sel.value;
-  sel.innerHTML = '<option value="">All Designations</option>' + designationCache.map(d=>`<option value="${d.id}">${d.name}</option>`).join('');
-  sel.value = current;
+  fillFilterSelect(document.getElementById('staffDesignationFilter'), 'All Designations', designationCache);
 }
 function branchName(id){
   const b = branchCache.find(x=>x.id===id);
@@ -1018,11 +1057,13 @@ function designationName(id){
   const d = designationCache.find(x=>x.id===id);
   return d ? d.name : '—';
 }
-async function renderStaffTable(){
-  staffCache = await getStaff();
-  await populateBranchFilter();
-  await populateInstitutionFilter();
-  await populateDesignationFilter();
+/** refresh=false just re-filters the list already loaded (used while typing
+ *  in search or changing a filter) instead of calling the Sheet 4 times. */
+async function renderStaffTable(refresh = true){
+  if(refresh){
+    staffCache = await getStaff();
+    await Promise.all([populateBranchFilter(), populateInstitutionFilter(), populateDesignationFilter()]);
+  }
   const search = document.getElementById('staffSearch').value.toLowerCase();
   const instFilter = document.getElementById('staffInstFilter').value;
   const branchFilter = document.getElementById('staffBranchFilter').value;
@@ -1031,7 +1072,7 @@ async function renderStaffTable(){
   const statusFilter = document.getElementById('staffStatusFilter').value;
 
   let rows = staffCache.filter(s=>{
-    const matchesSearch = !search || s.name.toLowerCase().includes(search) || designationName(s.designation).toLowerCase().includes(search);
+    const matchesSearch = !search || String(s.name).toLowerCase().includes(search) || designationName(s.designation).toLowerCase().includes(search);
     const matchesInst = !instFilter || s.institution===instFilter;
     const matchesBranch = !branchFilter || s.branch===branchFilter;
     const matchesDesignation = !designationFilter || s.designation===designationFilter;
@@ -1047,58 +1088,49 @@ async function renderStaffTable(){
   rows.forEach(s=>{
     const tr = document.createElement('tr');
     tr.innerHTML = `
-      <td class="mono">${s.id}</td>
-      <td>${s.name}</td>
-      <td>${designationName(s.designation)}</td>
-      <td><span class="badge-inst">${institutionName(s.institution)}</span></td>
-      <td>${branchName(s.branch)}</td>
-      <td class="num mono">${fmtMoney(s.baseSalary)}</td>
-      <td class="mono">${s.bankAccount}</td>
-      <td><span class="pill ${(s.paymentMode||'Bank Transfer')==='Cash'?'pill-gold':'pill-green'}">${s.paymentMode||'Bank Transfer'}</span></td>
-      <td class="num mono">${s.pf}%</td>
-      <td class="num mono">${s.esi}%</td>
-      <td><span class="pill ${s.status==='Active'?'pill-green':'pill-red'}">${s.status}</span></td>
-      <td><button class="btn btn-ghost btn-sm" onclick="editStaff('${s.id}')">Edit</button></td>
+      <td class="mono">${esc(s.id)}</td>
+      <td>${esc(s.name)}</td>
+      <td>${esc(designationName(s.designation))}</td>
+      <td><span class="badge-inst">${esc(institutionName(s.institution))}</span></td>
+      <td>${esc(branchName(s.branch))}</td>
+      <td class="num mono">${fmtMoney(Number(s.baseSalary)||0)}</td>
+      <td class="mono">${esc(s.bankAccount)}</td>
+      <td><span class="pill ${(s.paymentMode||'Bank Transfer')==='Cash'?'pill-gold':'pill-green'}">${esc(s.paymentMode||'Bank Transfer')}</span></td>
+      <td class="num mono">${esc(s.pf)}%</td>
+      <td class="num mono">${esc(s.esi)}%</td>
+      <td><span class="pill ${s.status==='Active'?'pill-green':'pill-red'}">${esc(s.status)}</span></td>
+      <td><button class="btn btn-ghost btn-sm" onclick="editStaff(${jsArg(s.id)})">Edit</button></td>
     `;
     tbody.appendChild(tr);
   });
 
   const active = staffCache.filter(s=>s.status==='Active');
   document.getElementById('statActiveStaff').textContent = active.length;
-  document.getElementById('statInstitutions').textContent = institutionCache.filter(i=>i.active!==false).length;
-  document.getElementById('statBranches').textContent = branchCache.filter(b=>b.active!==false).length;
+  document.getElementById('statInstitutions').textContent = institutionCache.filter(isActive).length;
+  document.getElementById('statBranches').textContent = branchCache.filter(isActive).length;
   document.getElementById('statBaseTotal').textContent = fmtMoney(active.reduce((a,s)=>a+Number(s.baseSalary),0));
 }
 
-async function populateBranchSelect(selectedId){
-  const sel = document.getElementById('staffBranch');
-  const branches = await getBranches();
-  let optionsHtml = branches.map(b=>`<option value="${b.id}">${b.name}</option>`).join('');
-  if(selectedId && !branches.some(b=>b.id===selectedId)){
-    optionsHtml = `<option value="${selectedId}">(deleted branch — reselect)</option>` + optionsHtml;
+/** Fills a staff-form dropdown with active items. If the staff member's
+ *  current value was removed, it stays selected (marked) so saving the
+ *  form without touching it doesn't silently change their record. */
+function fillRecordSelect(sel, items, selectedId, kindLabel){
+  let optionsHtml = items.filter(isActive).map(x=>`<option value="${esc(x.id)}">${esc(x.name)}</option>`).join('');
+  if(selectedId && !items.some(x=>x.id===selectedId && isActive(x))){
+    const old = items.find(x=>x.id===selectedId);
+    optionsHtml = `<option value="${esc(selectedId)}">${old ? esc(old.name) + ' (removed)' : `(deleted ${kindLabel} — reselect)`}</option>` + optionsHtml;
   }
   sel.innerHTML = optionsHtml;
   if(selectedId) sel.value = selectedId;
+}
+async function populateBranchSelect(selectedId){
+  fillRecordSelect(document.getElementById('staffBranch'), await getBranches(), selectedId, 'branch');
 }
 async function populateInstitutionSelect(selectedId){
-  const sel = document.getElementById('staffInstitution');
-  const institutions = await getInstitutions();
-  let optionsHtml = institutions.map(i=>`<option value="${i.id}">${i.name}</option>`).join('');
-  if(selectedId && !institutions.some(i=>i.id===selectedId)){
-    optionsHtml = `<option value="${selectedId}">(deleted institution — reselect)</option>` + optionsHtml;
-  }
-  sel.innerHTML = optionsHtml;
-  if(selectedId) sel.value = selectedId;
+  fillRecordSelect(document.getElementById('staffInstitution'), await getInstitutions(), selectedId, 'institution');
 }
 async function populateDesignationSelect(selectedId){
-  const sel = document.getElementById('staffDesignation');
-  const designations = await getDesignations();
-  let optionsHtml = designations.map(d=>`<option value="${d.id}">${d.name}</option>`).join('');
-  if(selectedId && !designations.some(d=>d.id===selectedId)){
-    optionsHtml = `<option value="${selectedId}">(deleted designation — reselect)</option>` + optionsHtml;
-  }
-  sel.innerHTML = optionsHtml;
-  if(selectedId) sel.value = selectedId;
+  fillRecordSelect(document.getElementById('staffDesignation'), await getDesignations(), selectedId, 'designation');
 }
 async function openStaffModal(){
   document.getElementById('staffModalTitle').textContent = 'Add Staff';
@@ -1139,13 +1171,22 @@ async function saveStaffModal(){
   if(!name){ toast('Please enter a name'); return; }
   let id = document.getElementById('staffId').value;
   if(!id){
-    const maxNum = staffCache.reduce((m,s)=>{
-      const n = parseInt((s.id||'S000').replace(/\D/g,''))||0; return Math.max(m,n);
+    // Re-read the full staff list right before choosing the next ID. Using a
+    // stale or empty cached list could hand out an ID that already exists and
+    // overwrite that person's record.
+    let latest;
+    try{ latest = await getStaff(); }
+    catch(e){ toast('⚠ Could not reach the Google Sheet — staff not saved. Try again.'); return; }
+    if(!Array.isArray(latest)){ toast('⚠ Could not read the staff list — staff not saved.'); return; }
+    const maxNum = latest.reduce((m,s)=>{
+      const n = parseInt(String(s.id||'S000').replace(/\D/g,''))||0; return Math.max(m,n);
     },0);
     id = 'S' + String(maxNum+1).padStart(3,'0');
+    if(latest.some(s=>s.id===id)){ toast('⚠ ID clash — staff not saved. Please try again.'); return; }
   }
   const staff = {
     id, name,
+    _new: !document.getElementById('staffId').value,
     designation: document.getElementById('staffDesignation').value,
     institution: document.getElementById('staffInstitution').value,
     branch: document.getElementById('staffBranch').value,
@@ -1216,9 +1257,12 @@ async function handleStaffImportFile(event){
     const sheetName = workbook.SheetNames.includes('Staff') ? 'Staff' : workbook.SheetNames[0];
     const sheet = workbook.Sheets[sheetName];
     const rawRows = XLSX.utils.sheet_to_json(sheet, {defval:''});
+    // Same rows as displayed text — used for bank account and phone numbers so
+    // leading zeros and long digit strings aren't mangled by number conversion.
+    const textRows = XLSX.utils.sheet_to_json(sheet, {defval:'', raw:false});
 
     if(!rawRows.length){
-      summaryEl.innerHTML = `<p style="color:var(--red); font-size:13px;">No rows found in "${sheetName}". Make sure the first row has column headers.</p>`;
+      summaryEl.innerHTML = `<p style="color:var(--red); font-size:13px;">No rows found in "${esc(sheetName)}". Make sure the first row has column headers.</p>`;
       event.target.value = '';
       return;
     }
@@ -1269,11 +1313,28 @@ async function handleStaffImportFile(event){
 
     let imported = 0, updated = 0, skipped = 0;
     const errors = [];
+    const warnings = [];
 
-    for(const rawRow of rawRows){
-      const row = mapImportRow(rawRow);
+    for(let r = 0; r < rawRows.length; r++){
+      const row = mapImportRow(rawRows[r]);
+      const textRow = mapImportRow(textRows[r] || {});
+      // A blank cell means "not given": it must not wipe a value already saved.
+      Object.keys(row).forEach(k=>{ if(String(row[k]).trim() === '') delete row[k]; });
       const name = String(row.name||'').trim();
       if(!name){ skipped++; continue; }
+      ['bankAccount','contact'].forEach(k=>{
+        if(row[k] === undefined) return;
+        const text = String(textRow[k] ?? '').trim();
+        const raw = row[k];
+        // Excel keeps only 15 significant digits for numbers; a longer account
+        // number typed as a number is already damaged and must not be saved.
+        if(/e\+/i.test(text) || (typeof raw === 'number' && Math.abs(raw) > 999999999999999)){
+          warnings.push(`${name}: ${k==='bankAccount'?'bank account':'contact'} "${text}" looks rounded by Excel — not changed. Format that column as Text in Excel and re-enter it.`);
+          delete row[k];
+        } else {
+          row[k] = text || String(raw);
+        }
+      });
 
       let id = String(row.id||'').trim();
       let isUpdate = false;
@@ -1306,9 +1367,17 @@ async function handleStaffImportFile(event){
         status: row.status !== undefined ? ((String(row.status).trim()==='Inactive') ? 'Inactive' : 'Active') : (base.status||'Active')
       };
 
+      if(!isUpdate && existingStaff.some(s=>s.id===id)){
+        errors.push(`${name}: ID ${id} appears twice in the file — second row skipped`);
+        continue;
+      }
       try{
-        await upsertStaff(staff);
-        existingStaff.push(staff);
+        const saved = (await upsertStaff(Object.assign({_new: !isUpdate}, staff))) || staff;
+        if(isUpdate){
+          existingStaff[existingStaff.findIndex(s=>s.id===id)] = saved;
+        } else {
+          existingStaff.push(saved);
+        }
         if(isUpdate) updated++; else imported++;
       } catch(e){
         errors.push(`${name}: ${e.message}`);
@@ -1325,7 +1394,10 @@ async function handleStaffImportFile(event){
       summaryHtml += `<p style="font-size:12.5px; color:#6B7280;">New institutions/branches/designations found in the file were created automatically — check Settings to rename or clean these up if needed.</p>`;
     }
     if(errors.length){
-      summaryHtml += `<p style="font-size:12.5px; color:var(--red); margin-top:8px;">${errors.length} error(s):<br>${errors.slice(0,5).join('<br>')}</p>`;
+      summaryHtml += `<p style="font-size:12.5px; color:var(--red); margin-top:8px;">${errors.length} error(s):<br>${errors.slice(0,5).map(esc).join('<br>')}</p>`;
+    }
+    if(warnings.length){
+      summaryHtml += `<p style="font-size:12.5px; color:#7A611A; margin-top:8px;">${warnings.length} warning(s):<br>${warnings.slice(0,10).map(esc).join('<br>')}</p>`;
     }
     summaryHtml += `<button class="btn btn-ghost btn-sm" style="margin-top:10px;" onclick="document.getElementById('importSummary').style.display='none';">Dismiss</button>`;
     summaryEl.innerHTML = summaryHtml;
@@ -1333,7 +1405,7 @@ async function handleStaffImportFile(event){
     toast(`Imported ${imported + updated} staff from Excel`);
     renderStaffTable();
   } catch(e){
-    summaryEl.innerHTML = `<p style="color:var(--red); font-size:13px;">Could not read that file: ${e.message}. Make sure it's a valid .xlsx, .xls, or .csv file.</p>`;
+    summaryEl.innerHTML = `<p style="color:var(--red); font-size:13px;">Could not read that file: ${esc(e.message)}. Make sure it's a valid .xlsx, .xls, or .csv file.</p>`;
   }
   event.target.value = '';
 }
@@ -1360,25 +1432,52 @@ function populateMonthYear(monthSelId, yearSelId, yearsBack=3, yearsFwd=1){
 }
 
 let payrollTypesCache = [];
+let payrollLoadSeq = 0;        // only the most recent load may draw the table
+let payrollDirty = false;      // unsaved edits in the table
+let payrollLoadedPeriod = null; // {month, year, inst} the table is actually showing
 async function initPayrollControls(){
   populateMonthYear('payrollMonth','payrollYear');
-  payrollTypesCache = (await getTypes()).filter(t=>t.active!==false);
   const instSel = document.getElementById('payrollInstFilter');
-  const institutions = await getInstitutions();
+  const institutions = (await getInstitutions()).filter(isActive);
   const currentVal = instSel.value;
-  instSel.innerHTML = '<option value="">All Institutions</option>' + institutions.map(i=>`<option value="${i.id}">${i.name}</option>`).join('');
+  instSel.innerHTML = '<option value="">All Institutions</option>' + institutions.map(i=>`<option value="${esc(i.id)}">${esc(i.name)}</option>`).join('');
   instSel.value = currentVal;
+  await loadPayrollTable();
+}
+function confirmDiscardPayrollEdits(){
+  if(!payrollDirty) return true;
+  return confirm('You have unsaved changes in the payroll table. Discard them?');
+}
+/** Changing month/year/institution reloads the table straight away, so the
+ *  figures on screen always belong to the month shown in the dropdowns. */
+function onPayrollPeriodChange(){
+  if(!confirmDiscardPayrollEdits()){
+    if(payrollLoadedPeriod){
+      document.getElementById('payrollMonth').value = payrollLoadedPeriod.month;
+      document.getElementById('payrollYear').value = payrollLoadedPeriod.year;
+      document.getElementById('payrollInstFilter').value = payrollLoadedPeriod.inst;
+    }
+    return;
+  }
   loadPayrollTable();
+}
+/** Number from a saved entry, falling back when the Sheet has no value. */
+function snapNum(value, fallback){
+  return (value === undefined || value === null || value === '') ? (Number(fallback)||0) : (Number(value)||0);
 }
 
 async function loadPayrollTable(){
+  const seq = ++payrollLoadSeq;
   const month = Number(document.getElementById('payrollMonth').value);
   const year = Number(document.getElementById('payrollYear').value);
   const instFilter = document.getElementById('payrollInstFilter').value;
-  const institutions = await getInstitutions();
+  const [types, institutions, staff, existingEntries] = await Promise.all([getTypes(), getInstitutions(), getStaff(), getPayrollEntries()]);
+  if(seq !== payrollLoadSeq) return; // a newer load started while this one was waiting
+  payrollTypesCache = types.filter(isActive);
+  payrollLoadedPeriod = {month, year, inst: instFilter};
+  payrollDirty = false;
   const instNameOf = id => (institutions.find(i=>i.id===id) || {}).name || '—';
-  const allStaff = (await getStaff()).filter(s=>s.status==='Active' && (!instFilter || s.institution===instFilter));
-  const existingEntries = await getPayrollEntries();
+  const allStaff = staff.filter(s=>s.status==='Active' && (!instFilter || s.institution===instFilter));
 
   const headRow = document.getElementById('payrollHeadRow');
   headRow.innerHTML = `
@@ -1387,7 +1486,7 @@ async function loadPayrollTable(){
     <th class="num">Leaves</th>
     <th class="num">Overtime (₹)</th>
     <th class="num">Advance (₹)</th>
-    ${payrollTypesCache.map(t=>`<th class="num">${t.name} ${t.kind==='deduction'?'(–)':'(+)'}</th>`).join('')}
+    ${payrollTypesCache.map(t=>`<th class="num">${esc(t.name)} ${t.kind==='deduction'?'(–)':'(+)'}</th>`).join('')}
     <th class="num">PF</th><th class="num">ESI</th>
     <th class="num">Net Pay</th>
     <th>Status</th>
@@ -1395,31 +1494,37 @@ async function loadPayrollTable(){
 
   const tbody = document.getElementById('payrollTableBody');
   tbody.innerHTML = '';
+  tbody.dataset.month = month;
+  tbody.dataset.year = year;
   document.getElementById('payrollEmpty').style.display = allStaff.length ? 'none' : 'block';
 
   allStaff.forEach(s=>{
-    const existing = existingEntries.find(e=>e.staffId===s.id && e.month===month && e.year===year);
+    const existing = existingEntries.find(e=>e.staffId===s.id && isEntryFor(e, month, year));
+    // A month that was already saved keeps the salary/PF/ESI it was saved with,
+    // so re-saving an old month after a raise doesn't rewrite its pay.
+    const base = snapNum(existing?.baseSalary, s.baseSalary);
     const tr = document.createElement('tr');
     tr.dataset.staffId = s.id;
     tr.dataset.staffName = s.name.toLowerCase();
     let typeInputs = payrollTypesCache.map(t=>{
       const val = existing?.values?.[t.id] ?? 0;
-      return `<td class="num"><input type="number" min="0" step="0.01" class="type-input" data-type="${t.id}" value="${val}" oninput="recalcRow(this)"></td>`;
+      return `<td class="num"><input type="number" min="0" step="0.01" class="type-input" data-type="${esc(t.id)}" value="${esc(val)}" oninput="recalcRow(this)"></td>`;
     }).join('');
     tr.innerHTML = `
-      <td>${s.name}</td>
-      <td><span class="badge-inst">${instNameOf(s.institution)}</span></td>
-      <td class="num mono base-cell" data-base="${s.baseSalary}">${fmtMoney(s.baseSalary)}</td>
-      <td class="num"><input type="number" min="0" step="0.5" class="leaves-input" value="${existing?.leaves ?? 0}" oninput="recalcRow(this)"></td>
-      <td class="num"><input type="number" min="0" step="0.01" class="overtime-input" value="${existing?.overtime ?? 0}" oninput="recalcRow(this)"></td>
-      <td class="num"><input type="number" min="0" step="0.01" class="advance-input" value="${existing?.advance ?? 0}" oninput="recalcRow(this)"></td>
+      <td>${esc(s.name)}</td>
+      <td><span class="badge-inst">${esc(instNameOf(s.institution))}</span></td>
+      <td class="num mono base-cell" data-base="${base}">${fmtMoney(base)}</td>
+      <td class="num"><input type="number" min="0" max="${daysInMonth(month, year)}" step="0.5" class="leaves-input" value="${esc(existing?.leaves ?? 0)}" oninput="recalcRow(this)"></td>
+      <td class="num"><input type="number" min="0" step="0.01" class="overtime-input" value="${esc(existing?.overtime ?? 0)}" oninput="recalcRow(this)"></td>
+      <td class="num"><input type="number" min="0" step="0.01" class="advance-input" value="${esc(existing?.advance ?? 0)}" oninput="recalcRow(this)"></td>
       ${typeInputs}
       <td class="num mono pf-cell">—</td>
       <td class="num mono esi-cell">—</td>
       <td class="num mono net-cell net-figure">—</td>
-      <td>${existing ? `<span class="pill pill-green" title="Last saved ${existing.savedAt ? new Date(existing.savedAt).toLocaleString() : ''}">Saved</span>` : `<span class="pill" style="background:#EFEBE0; color:#7A7264;">Not saved</span>`}</td>
+      <td>${existing ? `<span class="pill pill-green" title="Last saved ${existing.savedAt ? esc(new Date(existing.savedAt).toLocaleString()) : ''}">Saved</span>` : `<span class="pill" style="background:#EFEBE0; color:#7A7264;">Not saved</span>`}</td>
     `;
-    tr.dataset.pf = s.pf; tr.dataset.esi = s.esi;
+    tr.dataset.pf = snapNum(existing?.pfPct, s.pf);
+    tr.dataset.esi = snapNum(existing?.esiPct, s.esi);
     tbody.appendChild(tr);
     recalcRow(tr.querySelector('.leaves-input'), month, year);
   });
@@ -1445,8 +1550,9 @@ function filterPayrollRows(){
 
 function recalcRow(el, monthOverride, yearOverride){
   const tr = el.closest('tr');
-  const month = monthOverride ?? Number(document.getElementById('payrollMonth').value);
-  const year = yearOverride ?? Number(document.getElementById('payrollYear').value);
+  const tbody = document.getElementById('payrollTableBody');
+  const month = monthOverride ?? Number(tbody.dataset.month);
+  const year = yearOverride ?? Number(tbody.dataset.year);
   const base = Number(tr.querySelector('.base-cell').dataset.base);
   const leaves = Number(tr.querySelector('.leaves-input').value)||0;
   const overtime = Number(tr.querySelector('.overtime-input').value)||0;
@@ -1476,28 +1582,67 @@ function recalcRow(el, monthOverride, yearOverride){
   tr.querySelector('.net-cell').textContent = fmtMoney(net);
 }
 
+document.getElementById('payrollTableBody').addEventListener('input', ()=>{ payrollDirty = true; });
+
+let payrollSaving = false;
 async function savePayrollTable(){
-  const month = Number(document.getElementById('payrollMonth').value);
-  const year = Number(document.getElementById('payrollYear').value);
+  if(payrollSaving) return;
+  // Always save under the month the table was loaded for — never whatever
+  // the dropdown says now — so one month's figures can't overwrite another's.
+  if(!payrollLoadedPeriod){ toast('Load a month first'); return; }
+  const {month, year} = payrollLoadedPeriod;
   const rows = document.querySelectorAll('#payrollTableBody tr');
   if(!rows.length){ toast('Nothing to save'); return; }
 
+  const dim = daysInMonth(month, year);
+  const problems = [];
+  const negativeNet = [];
   const entries = [];
   rows.forEach(tr=>{
+    tr.style.outline = '';
+    const staffName = tr.querySelector('td').textContent;
+    const leaves = Number(tr.querySelector('.leaves-input').value)||0;
+    const nums = [...tr.querySelectorAll('input[type=number]')].map(i=>Number(i.value)||0);
+    if(nums.some(n=>n<0) || leaves > dim){
+      problems.push(staffName);
+      tr.style.outline = '2px solid var(--red)';
+    }
     const staffId = tr.dataset.staffId;
     const values = {};
     tr.querySelectorAll('.type-input').forEach(inp=>{ values[inp.dataset.type] = Number(inp.value)||0; });
+    const netPay = parseFloat(tr.querySelector('.net-cell').textContent.replace(/[₹,]/g,''));
+    if(netPay < 0) negativeNet.push(staffName);
     entries.push({
       staffId, month, year,
-      leaves: Number(tr.querySelector('.leaves-input').value)||0,
+      leaves,
       overtime: Number(tr.querySelector('.overtime-input').value)||0,
       advance: Number(tr.querySelector('.advance-input').value)||0,
       values,
-      netPay: parseFloat(tr.querySelector('.net-cell').textContent.replace(/[₹,]/g,'')),
+      netPay,
+      // Snapshot of the salary terms used for this month, so later salary or
+      // PF/ESI changes don't alter old payslips and bank reports.
+      baseSalary: Number(tr.querySelector('.base-cell').dataset.base)||0,
+      pfPct: Number(tr.dataset.pf)||0,
+      esiPct: Number(tr.dataset.esi)||0,
       savedAt: new Date().toISOString()
     });
   });
-  await savePayrollEntries(entries);
+  if(problems.length){
+    toast(`Not saved — check ${problems.length} row(s): no negative numbers, and leaves can't exceed ${dim} days`);
+    return;
+  }
+  if(negativeNet.length && !confirm(`Net pay is negative for: ${negativeNet.join(', ')}.\n\nSave anyway?`)) return;
+
+  payrollSaving = true;
+  try{
+    await savePayrollEntries(entries);
+  } catch(e){
+    toast('⚠ Save failed — your edits are still on screen. ' + e.message);
+    return;
+  } finally {
+    payrollSaving = false;
+  }
+  payrollDirty = false;
   toast(`Payroll saved for ${MONTHS[month]} ${year} (${entries.length} staff)`);
   await loadPayrollTable();
 }
@@ -1517,36 +1662,19 @@ async function initReportControls(){
   populateMonthYear('bankMonth','bankYear');
   populateMonthYear('cashMonth','cashYear');
   populateMonthYear('payslipMonth','payslipYear');
-  populateMonthYear('yearlyYear','yearlyYear'); // year only used
-  const staffSel1 = document.getElementById('payslipStaff');
-  const staffSel2 = document.getElementById('yearlyStaff');
-  if(!staffSel1.dataset.filled){
-    const staff = await getStaff();
-    [staffSel1, staffSel2].forEach(sel=>{
-      staff.forEach(s=>{ const o = document.createElement('option'); o.value=s.id; o.textContent=s.name; sel.appendChild(o); });
-      sel.dataset.filled='1';
-    });
-  }
-  const branchSel = document.getElementById('stafflistBranch');
-  if(!branchSel.dataset.filled){
-    const branches = await getBranches();
-    branches.forEach(b=>{ const o = document.createElement('option'); o.value=b.id; o.textContent=b.name; branchSel.appendChild(o); });
-    branchSel.dataset.filled='1';
-  }
-  const designationSel = document.getElementById('stafflistDesignation');
-  if(!designationSel.dataset.filled){
-    const designations = await getDesignations();
-    designations.forEach(d=>{ const o = document.createElement('option'); o.value=d.id; o.textContent=d.name; designationSel.appendChild(o); });
-    designationSel.dataset.filled='1';
-  }
-  const instSel1 = document.getElementById('stafflistInst');
-  if(!instSel1.dataset.filled){
-    const institutions = await getInstitutions();
-    [document.getElementById('stafflistInst'), document.getElementById('summaryInst'), document.getElementById('bankInst'), document.getElementById('cashInst')].forEach(sel=>{
-      institutions.forEach(i=>{ const o = document.createElement('option'); o.value=i.id; o.textContent=i.name; sel.appendChild(o); });
-      sel.dataset.filled='1';
-    });
-  }
+  populateMonthYear(null,'yearlyYear'); // year only — this select must not get month names
+  // Refilled on every visit so staff/branches added since page load show up.
+  const [staff, branches, designations, institutions] = await Promise.all([getStaff(), getBranches(), getDesignations(), getInstitutions()]);
+  ['payslipStaff','yearlyStaff'].forEach(selId=>{
+    const sel = document.getElementById(selId);
+    const current = sel.value;
+    sel.innerHTML = staff.map(s=>`<option value="${esc(s.id)}">${esc(s.name)}${s.status==='Inactive'?' (inactive)':''}</option>`).join('');
+    if(current) sel.value = current;
+  });
+  fillFilterSelect(document.getElementById('stafflistBranch'), 'All Branches', branches);
+  fillFilterSelect(document.getElementById('stafflistDesignation'), 'All Designations', designations);
+  ['stafflistInst','summaryInst','bankInst','cashInst'].forEach(selId=>
+    fillFilterSelect(document.getElementById(selId), 'All Institutions', institutions));
   renderStaffListReport();
   renderSummaryReport();
 }
@@ -1565,12 +1693,13 @@ async function renderStaffListReport(){
     return (!inst || s.institution===inst) && (!branch || s.branch===branch) && (!designationFilter || s.designation===designationFilter) && (!status || s.status===status);
   });
 
-  let html = `<div class="print-only"><h2>Staff List${inst?' — '+instNameOf(inst):''}${branch?' — '+branchNameOf(branch):''}</h2>
+  let html = `<div class="print-only"><h2>Staff List${inst?' — '+esc(instNameOf(inst)):''}${branch?' — '+esc(branchNameOf(branch)):''}</h2>
     <p style="color:#6B7280;font-size:13px;margin-bottom:16px;">Balaji Service Society</p></div>`;
 
   if(!rows.length){
     html += `<div class="empty-state"><h3>No staff found</h3><p>Try a different filter, or add staff in the Staff tab.</p></div>`;
     document.getElementById('stafflistReportBody').innerHTML = html;
+    document.getElementById('stafflistReportBody').dataset.rows = '[]';
     return;
   }
 
@@ -1581,20 +1710,20 @@ async function renderStaffListReport(){
   </tr></thead><tbody>`;
   rows.forEach(s=>{
     html += `<tr>
-      <td class="mono">${s.id}</td>
-      <td>${s.name}</td>
-      <td>${designationNameOf(s.designation)}</td>
-      <td><span class="badge-inst">${instNameOf(s.institution)}</span></td>
-      <td>${branchNameOf(s.branch)}</td>
-      <td class="num mono">${fmtMoney(s.baseSalary)}</td>
-      <td>${s.bankName||'—'}</td>
-      <td class="mono">${s.bankAccount||'—'}</td>
-      <td><span class="pill ${(s.paymentMode||'Bank Transfer')==='Cash'?'pill-gold':'pill-green'}">${s.paymentMode||'Bank Transfer'}</span></td>
-      <td class="num mono">${s.pf}%</td>
-      <td class="num mono">${s.esi}%</td>
-      <td class="mono">${s.contact||'—'}</td>
+      <td class="mono">${esc(s.id)}</td>
+      <td>${esc(s.name)}</td>
+      <td>${esc(designationNameOf(s.designation))}</td>
+      <td><span class="badge-inst">${esc(instNameOf(s.institution))}</span></td>
+      <td>${esc(branchNameOf(s.branch))}</td>
+      <td class="num mono">${fmtMoney(Number(s.baseSalary)||0)}</td>
+      <td>${esc(s.bankName||'—')}</td>
+      <td class="mono">${esc(s.bankAccount||'—')}</td>
+      <td><span class="pill ${(s.paymentMode||'Bank Transfer')==='Cash'?'pill-gold':'pill-green'}">${esc(s.paymentMode||'Bank Transfer')}</span></td>
+      <td class="num mono">${esc(s.pf)}%</td>
+      <td class="num mono">${esc(s.esi)}%</td>
+      <td class="mono">${esc(s.contact||'—')}</td>
       <td>${formatDateDisplay(s.doj)}</td>
-      <td><span class="pill ${s.status==='Active'?'pill-green':'pill-red'}">${s.status}</span></td>
+      <td><span class="pill ${s.status==='Active'?'pill-green':'pill-red'}">${esc(s.status)}</span></td>
     </tr>`;
   });
   html += `</tbody></table></div>
@@ -1618,30 +1747,43 @@ function exportStaffListCSV(){
   downloadCSV(csv, `staff_list_${Date.now()}.csv`);
 }
 
+/**
+ * Works out a saved month's pay. Uses the salary/PF/ESI stored with the
+ * entry when it was saved; entries saved before that snapshot existed fall
+ * back to the staff member's current figures.
+ */
 async function computeEntryDetails(entry, staff, types){
-  const dim = daysInMonth(entry.month, entry.year);
-  const perDay = staff.baseSalary/dim;
-  const leaveDeduction = perDay*entry.leaves;
+  const dim = daysInMonth(Number(entry.month), Number(entry.year));
+  const base = snapNum(entry.baseSalary, staff.baseSalary);
+  const pfPct = snapNum(entry.pfPct, staff.pf);
+  const esiPct = snapNum(entry.esiPct, staff.esi);
+  const leaves = Number(entry.leaves)||0;
+  const overtime = Number(entry.overtime)||0;
+  const advance = Number(entry.advance)||0;
+  const perDay = base/dim;
+  const leaveDeduction = perDay*leaves;
   let allowanceTotal=0, deductionTotal=0;
   const breakdown = [];
   types.forEach(t=>{
-    const v = entry.values?.[t.id]||0;
+    const v = Number(entry.values?.[t.id])||0;
     if(v){
       breakdown.push({name:t.name, kind:t.kind, amount:v});
       if(t.kind==='deduction') deductionTotal+=v; else allowanceTotal+=v;
     }
   });
-  const pfAmount = staff.baseSalary*staff.pf/100;
-  const esiAmount = staff.baseSalary*staff.esi/100;
-  const net = staff.baseSalary - leaveDeduction + entry.overtime - entry.advance + allowanceTotal - deductionTotal - pfAmount - esiAmount;
-  return {perDay, leaveDeduction, allowanceTotal, deductionTotal, pfAmount, esiAmount, net, breakdown};
+  const pfAmount = base*pfPct/100;
+  const esiAmount = base*esiPct/100;
+  const net = base - leaveDeduction + overtime - advance + allowanceTotal - deductionTotal - pfAmount - esiAmount;
+  return {base, pfPct, esiPct, leaves, overtime, advance, perDay, leaveDeduction, allowanceTotal, deductionTotal, pfAmount, esiAmount, net, breakdown};
 }
 
 async function editPayrollFor(month, year, staffId){
-  switchView('payroll');
+  // Set the period before switching, so the payroll tab loads it exactly once.
+  populateMonthYear('payrollMonth','payrollYear');
   document.getElementById('payrollMonth').value = month;
   document.getElementById('payrollYear').value = year;
-  await loadPayrollTable();
+  document.getElementById('payrollInstFilter').value = '';
+  await switchView('payroll');
   if(staffId){
     const row = document.querySelector(`#payrollTableBody tr[data-staff-id="${staffId}"]`);
     if(row){
@@ -1659,37 +1801,39 @@ async function renderSummaryReport(){
   const inst = document.getElementById('summaryInst').value;
   const [staff, types, entries, institutions] = await Promise.all([getStaff(), getTypes(), getPayrollEntries(), getInstitutions()]);
   const instNameOf = id => (institutions.find(i=>i.id===id) || {}).name || '—';
-  const rows = entries.filter(e=>e.month===month && e.year===year)
+  const rows = entries.filter(e=>isEntryFor(e, month, year))
     .map(e=>({entry:e, staff: staff.find(s=>s.id===e.staffId)}))
     .filter(r=>r.staff && (!inst || r.staff.institution===inst));
 
-  let html = `<div class="print-only"><h2>Monthly Payroll Summary — ${MONTHS[month]} ${year}${inst?' · '+instNameOf(inst):''}</h2><p style="color:#6B7280;font-size:13px;margin-bottom:16px;">Balaji Service Society</p></div>`;
+  let html = `<div class="print-only"><h2>Monthly Payroll Summary — ${MONTHS[month]} ${year}${inst?' · '+esc(instNameOf(inst)):''}</h2><p style="color:#6B7280;font-size:13px;margin-bottom:16px;">Balaji Service Society</p></div>`;
   if(!rows.length){
     html += `<div class="empty-state"><h3>No payroll saved</h3><p>Run and save payroll for this month first.</p></div>`;
     document.getElementById('summaryReportBody').innerHTML = html;
+    document.getElementById('summaryReportBody').dataset.rows = '[]';
     return;
   }
-  let totalGross=0, totalNet=0, totalDeductions=0;
+  let totalNet=0, totalDeductions=0;
+  const csvRows = [];
   html += `<div class="table-wrap"><table><thead><tr>
     <th>Staff</th><th>Institution</th><th class="num">Base</th><th class="num">Leaves</th>
     <th class="num">Overtime</th><th class="num">Advance</th><th class="num">PF</th><th class="num">ESI</th>
     <th class="num">Net Pay</th><th class="no-print"></th></tr></thead><tbody>`;
   for(const r of rows){
     const d = await computeEntryDetails(r.entry, r.staff, types);
-    totalGross += r.staff.baseSalary + r.entry.overtime + d.allowanceTotal;
-    totalDeductions += d.leaveDeduction + r.entry.advance + d.deductionTotal + d.pfAmount + d.esiAmount;
+    totalDeductions += d.leaveDeduction + d.advance + d.deductionTotal + d.pfAmount + d.esiAmount;
     totalNet += d.net;
+    csvRows.push({name:r.staff.name, institution:instNameOf(r.staff.institution), base:d.base, leaves:d.leaves, overtime:d.overtime, advance:d.advance, pf:d.pfAmount, esi:d.esiAmount, net:d.net});
     html += `<tr>
-      <td>${r.staff.name}</td>
-      <td><span class="badge-inst">${instNameOf(r.staff.institution)}</span></td>
-      <td class="num mono">${fmtMoney(r.staff.baseSalary)}</td>
-      <td class="num mono">${r.entry.leaves}</td>
-      <td class="num mono">${fmtMoney(r.entry.overtime)}</td>
-      <td class="num mono">${fmtMoney(r.entry.advance)}</td>
+      <td>${esc(r.staff.name)}</td>
+      <td><span class="badge-inst">${esc(instNameOf(r.staff.institution))}</span></td>
+      <td class="num mono">${fmtMoney(d.base)}</td>
+      <td class="num mono">${d.leaves}</td>
+      <td class="num mono">${fmtMoney(d.overtime)}</td>
+      <td class="num mono">${fmtMoney(d.advance)}</td>
       <td class="num mono">${fmtMoney(d.pfAmount)}</td>
       <td class="num mono">${fmtMoney(d.esiAmount)}</td>
       <td class="num mono net-figure">${fmtMoney(d.net)}</td>
-      <td class="no-print"><button class="btn btn-ghost btn-sm" onclick="editPayrollFor(${month},${year},'${r.staff.id}')">Edit</button></td>
+      <td class="no-print"><button class="btn btn-ghost btn-sm" onclick="editPayrollFor(${month},${year},${jsArg(r.staff.id)})">Edit</button></td>
     </tr>`;
   }
   html += `</tbody></table></div>
@@ -1699,10 +1843,7 @@ async function renderSummaryReport(){
       <div class="stat-card"><div class="label">Total Net Payout</div><div class="value mono">${fmtMoney(totalNet)}</div></div>
     </div>`;
   document.getElementById('summaryReportBody').innerHTML = html;
-  document.getElementById('summaryReportBody').dataset.rows = JSON.stringify(await Promise.all(rows.map(async r=>{
-    const d = await computeEntryDetails(r.entry, r.staff, types);
-    return {name:r.staff.name, institution:instNameOf(r.staff.institution), base:r.staff.baseSalary, leaves:r.entry.leaves, overtime:r.entry.overtime, advance:r.entry.advance, pf:d.pfAmount, esi:d.esiAmount, net:d.net};
-  })));
+  document.getElementById('summaryReportBody').dataset.rows = JSON.stringify(csvRows);
 }
 function exportSummaryCSV(){
   const rows = JSON.parse(document.getElementById('summaryReportBody').dataset.rows || '[]');
@@ -1718,13 +1859,13 @@ async function renderBankReport(){
   const inst = document.getElementById('bankInst').value;
   const [staff, types, entries, institutions] = await Promise.all([getStaff(), getTypes(), getPayrollEntries(), getInstitutions()]);
   const instNameOf = id => (institutions.find(i=>i.id===id) || {}).name || '—';
-  const allRows = entries.filter(e=>e.month===month && e.year===year)
+  const allRows = entries.filter(e=>isEntryFor(e, month, year))
     .map(e=>({entry:e, staff: staff.find(s=>s.id===e.staffId)}))
     .filter(r=>r.staff && (!inst || r.staff.institution===inst));
   const rows = allRows.filter(r=>(r.staff.paymentMode||'Bank Transfer')==='Bank Transfer');
   const cashCount = allRows.length - rows.length;
 
-  let html = `<div class="print-only"><h2>Salary Credit Advice — ${MONTHS[month]} ${year}${inst?' · '+instNameOf(inst):''}</h2>
+  let html = `<div class="print-only"><h2>Salary Credit Advice — ${MONTHS[month]} ${year}${inst?' · '+esc(instNameOf(inst)):''}</h2>
     <p style="color:#6B7280;font-size:13px;">To: The Branch Manager — Please credit the following salary amounts to the accounts listed below.</p></div>`;
   if(cashCount > 0){
     html += `<p class="no-print" style="font-size:12.5px; color:#6B7280; margin-bottom:12px;">${cashCount} staff paid by hand this month are excluded here — see the <strong>Cash Payments</strong> report tab.</p>`;
@@ -1732,6 +1873,7 @@ async function renderBankReport(){
   if(!rows.length){
     html += `<div class="empty-state"><h3>No bank-transfer payroll saved</h3><p>Run and save payroll for this month first, or all staff for this filter are paid by hand.</p></div>`;
     document.getElementById('bankReportBody').innerHTML = html;
+    document.getElementById('bankReportBody').dataset.rows = '[]';
     return;
   }
   let total=0;
@@ -1742,7 +1884,7 @@ async function renderBankReport(){
   for(const r of rows){
     const d = await computeEntryDetails(r.entry, r.staff, types);
     total += d.net;
-    html += `<tr><td class="num mono">${i}</td><td>${r.staff.name}</td><td class="mono">${r.staff.bankAccount}</td><td class="num mono">${fmtMoney(d.net)}</td></tr>`;
+    html += `<tr><td class="num mono">${i}</td><td>${esc(r.staff.name)}</td><td class="mono">${esc(r.staff.bankAccount)}</td><td class="num mono">${fmtMoney(d.net)}</td></tr>`;
     csvRows.push({sno:i, name:r.staff.name, acc:r.staff.bankAccount, net:d.net});
     i++;
   }
@@ -1765,15 +1907,16 @@ async function renderCashReport(){
   const [staff, types, entries, institutions, designations] = await Promise.all([getStaff(), getTypes(), getPayrollEntries(), getInstitutions(), getDesignations()]);
   const instNameOf = id => (institutions.find(i=>i.id===id) || {}).name || '—';
   const designationNameOf = id => (designations.find(d=>d.id===id) || {}).name || '—';
-  const rows = entries.filter(e=>e.month===month && e.year===year)
+  const rows = entries.filter(e=>isEntryFor(e, month, year))
     .map(e=>({entry:e, staff: staff.find(s=>s.id===e.staffId)}))
     .filter(r=>r.staff && (!inst || r.staff.institution===inst) && (r.staff.paymentMode||'Bank Transfer')==='Cash');
 
-  let html = `<div class="print-only"><h2>Cash Payment Register — ${MONTHS[month]} ${year}${inst?' · '+instNameOf(inst):''}</h2>
+  let html = `<div class="print-only"><h2>Cash Payment Register — ${MONTHS[month]} ${year}${inst?' · '+esc(instNameOf(inst)):''}</h2>
     <p style="color:#6B7280;font-size:13px;">Salaries paid by hand — for manual disbursement record-keeping.</p></div>`;
   if(!rows.length){
     html += `<div class="empty-state"><h3>No cash payroll saved</h3><p>Run and save payroll for this month first, or no staff here are marked as Cash payment.</p></div>`;
     document.getElementById('cashReportBody').innerHTML = html;
+    document.getElementById('cashReportBody').dataset.rows = '[]';
     return;
   }
   let total=0;
@@ -1784,7 +1927,7 @@ async function renderCashReport(){
   for(const r of rows){
     const d = await computeEntryDetails(r.entry, r.staff, types);
     total += d.net;
-    html += `<tr><td class="num mono">${i}</td><td>${r.staff.name}</td><td>${designationNameOf(r.staff.designation)}</td><td class="num mono">${fmtMoney(d.net)}</td><td class="print-only" style="min-width:100px;"></td></tr>`;
+    html += `<tr><td class="num mono">${i}</td><td>${esc(r.staff.name)}</td><td>${esc(designationNameOf(r.staff.designation))}</td><td class="num mono">${fmtMoney(d.net)}</td><td class="print-only" style="min-width:100px;"></td></tr>`;
     csvRows.push({sno:i, name:r.staff.name, designation:designationNameOf(r.staff.designation), net:d.net});
     i++;
   }
@@ -1855,44 +1998,44 @@ async function renderPayslip(){
   const branchNameOf = id => (branches.find(b=>b.id===id) || {}).name || '—';
   const designationNameOf = id => (designations.find(d=>d.id===id) || {}).name || '—';
   const s = staff.find(x=>x.id===staffId);
-  const entry = entries.find(e=>e.staffId===staffId && e.month===month && e.year===year);
+  const entry = entries.find(e=>e.staffId===staffId && isEntryFor(e, month, year));
   const body = document.getElementById('payslipBody');
   if(!s || !entry){ body.innerHTML = `<div class="empty-state"><h3>No payroll record</h3><p>No saved payroll for this staff member in ${MONTHS[month]} ${year}.</p></div>`; return; }
   const d = await computeEntryDetails(entry, s, types);
-  const grossEarnings = s.baseSalary + entry.overtime + d.allowanceTotal;
-  const totalDeductions = d.leaveDeduction + entry.advance + d.deductionTotal + d.pfAmount + d.esiAmount;
+  const grossEarnings = d.base + d.overtime + d.allowanceTotal;
+  const totalDeductions = d.leaveDeduction + d.advance + d.deductionTotal + d.pfAmount + d.esiAmount;
 
   body.innerHTML = `
     <div class="no-print" style="text-align:right; margin-bottom:10px;">
-      <button class="btn btn-ghost btn-sm" onclick="editPayrollFor(${month},${year},'${s.id}')">Edit this month's entry</button>
+      <button class="btn btn-ghost btn-sm" onclick="editPayrollFor(${month},${year},${jsArg(s.id)})">Edit this month's entry</button>
     </div>
 
     <div class="payslip-sheet">
       <div class="payslip-letterhead">
         <h2>Balaji Service Society</h2>
-        <div class="payslip-inst">${instNameOf(s.institution)}${s.branch ? ' — ' + branchNameOf(s.branch) : ''}</div>
+        <div class="payslip-inst">${esc(instNameOf(s.institution))}${s.branch ? ' — ' + esc(branchNameOf(s.branch)) : ''}</div>
         <div class="payslip-period">Payslip for ${MONTHS[month]} ${year}</div>
       </div>
 
       <div class="payslip-info-grid">
-        <div><label>Employee Name</label><div>${s.name}</div></div>
-        <div><label>Employee ID</label><div class="mono">${s.id}</div></div>
-        <div><label>Designation</label><div>${designationNameOf(s.designation)}</div></div>
+        <div><label>Employee Name</label><div>${esc(s.name)}</div></div>
+        <div><label>Employee ID</label><div class="mono">${esc(s.id)}</div></div>
+        <div><label>Designation</label><div>${esc(designationNameOf(s.designation))}</div></div>
         <div><label>Date of Joining</label><div>${formatDateDisplay(s.doj)}</div></div>
-        <div><label>Institution</label><div>${instNameOf(s.institution)}</div></div>
-        <div><label>Branch</label><div>${branchNameOf(s.branch)}</div></div>
-        <div><label>Payment Mode</label><div>${s.paymentMode||'Bank Transfer'}</div></div>
-        <div><label>Bank Account</label><div class="mono">${(s.paymentMode||'Bank Transfer')==='Cash' ? '— (Paid by hand)' : (s.bankAccount||'—')}</div></div>
+        <div><label>Institution</label><div>${esc(instNameOf(s.institution))}</div></div>
+        <div><label>Branch</label><div>${esc(branchNameOf(s.branch))}</div></div>
+        <div><label>Payment Mode</label><div>${esc(s.paymentMode||'Bank Transfer')}</div></div>
+        <div><label>Bank Account</label><div class="mono">${(s.paymentMode||'Bank Transfer')==='Cash' ? '— (Paid by hand)' : esc(s.bankAccount||'—')}</div></div>
       </div>
 
       <table class="payslip-table">
         <thead><tr><th>Earnings</th><th class="num">Amount</th><th>Deductions</th><th class="num">Amount</th></tr></thead>
         <tbody>
-          <tr><td>Base Salary</td><td class="num mono">${fmtMoney(s.baseSalary)}</td><td>Leave Deduction (${entry.leaves} day${entry.leaves===1?'':'s'})</td><td class="num mono">${fmtMoney(d.leaveDeduction)}</td></tr>
-          <tr><td>Overtime</td><td class="num mono">${fmtMoney(entry.overtime)}</td><td>Advance</td><td class="num mono">${fmtMoney(entry.advance)}</td></tr>
-          ${d.breakdown.map(b=>`<tr><td>${b.kind==='allowance'?b.name:''}</td><td class="num mono">${b.kind==='allowance'?fmtMoney(b.amount):''}</td><td>${b.kind==='deduction'?b.name:''}</td><td class="num mono">${b.kind==='deduction'?fmtMoney(b.amount):''}</td></tr>`).join('')}
-          <tr><td></td><td></td><td>PF (${s.pf}%)</td><td class="num mono">${fmtMoney(d.pfAmount)}</td></tr>
-          <tr><td></td><td></td><td>ESI (${s.esi}%)</td><td class="num mono">${fmtMoney(d.esiAmount)}</td></tr>
+          <tr><td>Base Salary</td><td class="num mono">${fmtMoney(d.base)}</td><td>Leave Deduction (${d.leaves} day${d.leaves===1?'':'s'})</td><td class="num mono">${fmtMoney(d.leaveDeduction)}</td></tr>
+          <tr><td>Overtime</td><td class="num mono">${fmtMoney(d.overtime)}</td><td>Advance</td><td class="num mono">${fmtMoney(d.advance)}</td></tr>
+          ${d.breakdown.map(b=>`<tr><td>${b.kind==='allowance'?esc(b.name):''}</td><td class="num mono">${b.kind==='allowance'?fmtMoney(b.amount):''}</td><td>${b.kind==='deduction'?esc(b.name):''}</td><td class="num mono">${b.kind==='deduction'?fmtMoney(b.amount):''}</td></tr>`).join('')}
+          <tr><td></td><td></td><td>PF (${d.pfPct}%)</td><td class="num mono">${fmtMoney(d.pfAmount)}</td></tr>
+          <tr><td></td><td></td><td>ESI (${d.esiPct}%)</td><td class="num mono">${fmtMoney(d.esiAmount)}</td></tr>
         </tbody>
         <tfoot>
           <tr class="payslip-subtotal"><td>Gross Earnings</td><td class="num mono">${fmtMoney(grossEarnings)}</td><td>Total Deductions</td><td class="num mono">${fmtMoney(totalDeductions)}</td></tr>
@@ -1931,15 +2074,15 @@ async function renderYearly(){
   const s = staff.find(x=>x.id===staffId);
   const body = document.getElementById('yearlyBody');
   if(!s){ body.innerHTML=''; return; }
-  let html = `<div class="print-only"><h2>Yearly Payroll — ${s.name} — ${year}</h2></div>
+  let html = `<div class="print-only"><h2>Yearly Payroll — ${esc(s.name)} — ${year}</h2></div>
     <div class="table-wrap"><table><thead><tr><th>Month</th><th class="num">Leaves</th><th class="num">Overtime</th><th class="num">Advance</th><th class="num">PF</th><th class="num">ESI</th><th class="num">Net Pay</th></tr></thead><tbody>`;
   let totalNet = 0, monthsPaid = 0;
   for(let m=0;m<12;m++){
-    const entry = entries.find(e=>e.staffId===staffId && e.month===m && e.year===year);
+    const entry = entries.find(e=>e.staffId===staffId && isEntryFor(e, m, year));
     if(!entry){ html += `<tr><td>${MONTHS[m]}</td><td colspan="6" style="color:#9CA3AF;">Not run</td></tr>`; continue; }
     const d = await computeEntryDetails(entry, s, types);
     totalNet += d.net; monthsPaid++;
-    html += `<tr><td>${MONTHS[m]}</td><td class="num mono">${entry.leaves}</td><td class="num mono">${fmtMoney(entry.overtime)}</td><td class="num mono">${fmtMoney(entry.advance)}</td><td class="num mono">${fmtMoney(d.pfAmount)}</td><td class="num mono">${fmtMoney(d.esiAmount)}</td><td class="num mono net-figure">${fmtMoney(d.net)}</td></tr>`;
+    html += `<tr><td>${MONTHS[m]}</td><td class="num mono">${d.leaves}</td><td class="num mono">${fmtMoney(d.overtime)}</td><td class="num mono">${fmtMoney(d.advance)}</td><td class="num mono">${fmtMoney(d.pfAmount)}</td><td class="num mono">${fmtMoney(d.esiAmount)}</td><td class="num mono net-figure">${fmtMoney(d.net)}</td></tr>`;
   }
   html += `</tbody></table></div>
     <div class="stat-row" style="margin-top:18px;">
@@ -1969,23 +2112,52 @@ async function initSettings(){
   document.getElementById('apiUrlInput').value = API_URL;
   updateConnectionStatus();
 }
-function renderTypesList(types){
-  const el = document.getElementById('typesList');
-  if(!types.length){ el.innerHTML = '<p style="color:#6B7280;font-size:13px;">No allowance/deduction types yet. Add one below.</p>'; return; }
-  el.innerHTML = types.map(t=>`
+/**
+ * Draws a Settings list. Removed items stay in the Sheet (active:false) and
+ * are listed underneath with a Restore button, because old payslips and
+ * staff records still point at them.
+ */
+function renderManagedList(elId, items, emptyMsg, removeFn, restoreFn, labelFn){
+  const el = document.getElementById(elId);
+  if(!items.length){ el.innerHTML = `<p style="color:#6B7280;font-size:13px;">${emptyMsg}</p>`; return; }
+  const active = items.filter(isActive), removed = items.filter(i=>!isActive(i));
+  el.innerHTML = active.map(i=>`
     <div class="type-row">
-      <div><span class="type-name">${t.name}</span> <span class="pill ${t.kind==='allowance'?'pill-green':'pill-red'}">${t.kind}</span></div>
-      <button class="btn btn-ghost btn-sm" onclick="removeType('${t.id}')">Remove</button>
+      <div>${labelFn(i)}</div>
+      <button class="btn btn-ghost btn-sm" onclick="${removeFn}(${jsArg(i.id)})">Remove</button>
     </div>
-  `).join('');
+  `).join('') + (removed.length ? `
+    <p style="color:#6B7280;font-size:12px;margin:14px 0 4px;">Removed — hidden from dropdowns, kept so old records still show correctly:</p>
+    ${removed.map(i=>`
+      <div class="type-row" style="opacity:0.6;">
+        <div>${labelFn(i)}</div>
+        <button class="btn btn-ghost btn-sm" onclick="${restoreFn}(${jsArg(i.id)})">Restore</button>
+      </div>`).join('')}` : '');
+}
+async function setListItemActive(getFn, saveFn, renderFn, id, active, label){
+  const items = await getFn();
+  const item = items.find(x=>x.id===id);
+  if(!item) return;
+  if(!active && !confirm(`Remove "${item.name}"? It will be hidden from dropdowns but kept for old records. You can restore it later.`)) return;
+  item.active = active;
+  await saveFn(items);
+  renderFn(items);
+  toast(`${label} ${active ? 'restored' : 'removed'}`);
+}
+function renderTypesList(types){
+  renderManagedList('typesList', types, 'No allowance/deduction types yet. Add one below.', 'removeType', 'restoreType',
+    t=>`<span class="type-name">${esc(t.name)}</span> <span class="pill ${t.kind==='allowance'?'pill-green':'pill-red'}">${esc(t.kind)}</span>`);
 }
 function renderUsersList(users){
   const el = document.getElementById('usersList');
   if(!users.length){ el.innerHTML = '<p style="color:#6B7280;font-size:13px;">No users yet — add one below (you\'ll need at least one to sign in).</p>'; return; }
   el.innerHTML = users.map(u=>`
     <div class="type-row">
-      <div><span class="type-name">${u.name || u.username}</span> <span style="color:#6B7280; font-size:12px;">@${u.username}</span></div>
-      <button class="btn btn-ghost btn-sm" onclick="removeUser('${u.username}')">Remove</button>
+      <div><span class="type-name">${esc(u.name || u.username)}</span> <span style="color:#6B7280; font-size:12px;">@${esc(u.username)}</span></div>
+      <div style="display:flex; gap:6px;">
+        <button class="btn btn-ghost btn-sm" onclick="resetUserPassword(${jsArg(u.username)})">Reset password</button>
+        <button class="btn btn-ghost btn-sm" onclick="removeUser(${jsArg(u.username)})">Remove</button>
+      </div>
     </div>
   `).join('');
 }
@@ -1994,10 +2166,17 @@ async function addUser(){
   const username = document.getElementById('newUserUsername').value.trim();
   const password = document.getElementById('newUserPassword').value;
   if(!username || !password){ toast('Enter a username and password'); return; }
-  const users = await getUsers();
-  if(users.some(u=>u.username===username)){ toast('That username already exists'); return; }
-  users.push({username, password, name, active:true});
-  await saveUsersRemote(users);
+  if(password.length < 6){ toast('Password must be at least 6 characters'); return; }
+  let users;
+  if(API_URL){
+    // The Sheet hashes the password; the full user list never comes back.
+    users = (await apiCall('addUser', {username, password, name})).data;
+  } else {
+    users = await getUsers();
+    if(users.some(u=>u.username===username)){ toast('That username already exists'); return; }
+    users.push({username, password, name, active:true});
+    await saveUsersRemote(users);
+  }
   document.getElementById('newUserName').value='';
   document.getElementById('newUserUsername').value='';
   document.getElementById('newUserPassword').value='';
@@ -2005,25 +2184,41 @@ async function addUser(){
   toast('User added');
 }
 async function removeUser(username){
-  let users = await getUsers();
-  if(users.length <= 1){
-    toast('⚠ Cannot remove the last user — you\'d be locked out. Add another user first.');
-    return;
+  if(!confirm(`Remove user @${username}? They will no longer be able to sign in.`)) return;
+  let users;
+  if(API_URL){
+    // The Sheet refuses to remove yourself or the last user.
+    users = (await apiCall('removeUser', {username})).data;
+  } else {
+    users = await getUsers();
+    if(users.length <= 1){
+      toast('⚠ Cannot remove the last user — you\'d be locked out. Add another user first.');
+      return;
+    }
+    users = users.filter(u=>u.username!==username);
+    await saveUsersRemote(users);
   }
-  users = users.filter(u=>u.username!==username);
-  await saveUsersRemote(users);
   renderUsersList(users);
   toast('User removed');
 }
+async function resetUserPassword(username){
+  const password = prompt(`New password for @${username} (at least 6 characters):`);
+  if(password === null) return;
+  if(password.length < 6){ toast('Password must be at least 6 characters'); return; }
+  if(API_URL){
+    await apiCall('setUserPassword', {username, password});
+  } else {
+    const users = await getUsers();
+    const u = users.find(x=>x.username===username);
+    if(!u) return;
+    u.password = password;
+    await saveUsersRemote(users);
+  }
+  toast(`Password changed for @${username}`);
+}
 function renderInstitutionsList(institutions){
-  const el = document.getElementById('institutionsList');
-  if(!institutions.length){ el.innerHTML = '<p style="color:#6B7280;font-size:13px;">No institutions yet. Add one below.</p>'; return; }
-  el.innerHTML = institutions.map(i=>`
-    <div class="type-row">
-      <div><span class="type-name">${i.name}</span></div>
-      <button class="btn btn-ghost btn-sm" onclick="removeInstitution('${i.id}')">Remove</button>
-    </div>
-  `).join('');
+  renderManagedList('institutionsList', institutions, 'No institutions yet. Add one below.', 'removeInstitution', 'restoreInstitution',
+    i=>`<span class="type-name">${esc(i.name)}</span>`);
 }
 async function addInstitution(){
   const name = document.getElementById('newInstitutionName').value.trim();
@@ -2036,22 +2231,11 @@ async function addInstitution(){
   renderInstitutionsList(institutions);
   toast('Institution added');
 }
-async function removeInstitution(id){
-  let institutions = await getInstitutions();
-  institutions = institutions.filter(i=>i.id!==id);
-  await saveInstitutionsRemote(institutions);
-  renderInstitutionsList(institutions);
-  toast('Institution removed');
-}
+function removeInstitution(id){ return setListItemActive(getInstitutions, saveInstitutionsRemote, renderInstitutionsList, id, false, 'Institution'); }
+function restoreInstitution(id){ return setListItemActive(getInstitutions, saveInstitutionsRemote, renderInstitutionsList, id, true, 'Institution'); }
 function renderDesignationsList(designations){
-  const el = document.getElementById('designationsList');
-  if(!designations.length){ el.innerHTML = '<p style="color:#6B7280;font-size:13px;">No designations yet. Add one below.</p>'; return; }
-  el.innerHTML = designations.map(d=>`
-    <div class="type-row">
-      <div><span class="type-name">${d.name}</span></div>
-      <button class="btn btn-ghost btn-sm" onclick="removeDesignation('${d.id}')">Remove</button>
-    </div>
-  `).join('');
+  renderManagedList('designationsList', designations, 'No designations yet. Add one below.', 'removeDesignation', 'restoreDesignation',
+    d=>`<span class="type-name">${esc(d.name)}</span>`);
 }
 async function addDesignation(){
   const name = document.getElementById('newDesignationName').value.trim();
@@ -2064,22 +2248,11 @@ async function addDesignation(){
   renderDesignationsList(designations);
   toast('Designation added');
 }
-async function removeDesignation(id){
-  let designations = await getDesignations();
-  designations = designations.filter(d=>d.id!==id);
-  await saveDesignationsRemote(designations);
-  renderDesignationsList(designations);
-  toast('Designation removed');
-}
+function removeDesignation(id){ return setListItemActive(getDesignations, saveDesignationsRemote, renderDesignationsList, id, false, 'Designation'); }
+function restoreDesignation(id){ return setListItemActive(getDesignations, saveDesignationsRemote, renderDesignationsList, id, true, 'Designation'); }
 function renderBranchesList(branches){
-  const el = document.getElementById('branchesList');
-  if(!branches.length){ el.innerHTML = '<p style="color:#6B7280;font-size:13px;">No branches yet. Add one below.</p>'; return; }
-  el.innerHTML = branches.map(b=>`
-    <div class="type-row">
-      <div><span class="type-name">${b.name}</span></div>
-      <button class="btn btn-ghost btn-sm" onclick="removeBranch('${b.id}')">Remove</button>
-    </div>
-  `).join('');
+  renderManagedList('branchesList', branches, 'No branches yet. Add one below.', 'removeBranch', 'restoreBranch',
+    b=>`<span class="type-name">${esc(b.name)}</span>`);
 }
 async function addBranch(){
   const name = document.getElementById('newBranchName').value.trim();
@@ -2092,13 +2265,8 @@ async function addBranch(){
   renderBranchesList(branches);
   toast('Branch added');
 }
-async function removeBranch(id){
-  let branches = await getBranches();
-  branches = branches.filter(b=>b.id!==id);
-  await saveBranchesRemote(branches);
-  renderBranchesList(branches);
-  toast('Branch removed');
-}
+function removeBranch(id){ return setListItemActive(getBranches, saveBranchesRemote, renderBranchesList, id, false, 'Branch'); }
+function restoreBranch(id){ return setListItemActive(getBranches, saveBranchesRemote, renderBranchesList, id, true, 'Branch'); }
 async function addType(){
   const name = document.getElementById('newTypeName').value.trim();
   if(!name){ toast('Enter a type name'); return; }
@@ -2111,13 +2279,8 @@ async function addType(){
   renderTypesList(types);
   toast('Type added');
 }
-async function removeType(id){
-  let types = await getTypes();
-  types = types.filter(t=>t.id!==id);
-  await saveTypesRemote(types);
-  renderTypesList(types);
-  toast('Type removed');
-}
+function removeType(id){ return setListItemActive(getTypes, saveTypesRemote, renderTypesList, id, false, 'Type'); }
+function restoreType(id){ return setListItemActive(getTypes, saveTypesRemote, renderTypesList, id, true, 'Type'); }
 function saveDefaults(){
   setDefaults({ pf: Number(document.getElementById('defaultPF').value)||0, esi: Number(document.getElementById('defaultESI').value)||0 });
   toast('Defaults saved');
@@ -2131,6 +2294,7 @@ function saveApiUrl(){
   renderStaffTable();
 }
 function useDemoMode(){
+  if(!confirm('Switch THIS browser to demo mode?\n\nAnything you enter afterwards is kept only in this browser and will NOT reach the Google Sheet. Use "Save & Reconnect" to go back to live.')) return;
   API_URL = '';
   localStorage.setItem('payroll_api_url', '__DEMO__');
   document.getElementById('apiUrlInput').value = '';
@@ -2174,41 +2338,76 @@ async function attemptLogin(){
   const errEl = document.getElementById('loginError');
   errEl.style.display = 'none';
   if(!username || !password){ errEl.textContent = 'Please enter a username and password.'; errEl.style.display='block'; return; }
-  let users;
-  try{
-    users = await getUsers();
-  } catch(e){
-    errEl.textContent = 'Could not reach the Google Sheet to verify login. Check your connection.';
-    errEl.style.display = 'block';
-    return;
+  let match, token = '';
+  if(API_URL){
+    // The Sheet checks the password and hands back a session token.
+    try{
+      const r = await apiCall('login', {username, password});
+      match = r.data.user;
+      token = r.data.token;
+    } catch(e){
+      errEl.textContent = /fetch|network/i.test(e.message)
+        ? 'Could not reach the Google Sheet to verify login. Check your connection.'
+        : e.message;
+      errEl.style.display = 'block';
+      return;
+    }
+  } else {
+    const users = await getUsers();
+    match = users.find(u => u.username === username && String(u.password) === password && u.active !== false);
+    if(!match){
+      errEl.textContent = 'Incorrect username or password.';
+      errEl.style.display = 'block';
+      return;
+    }
   }
-  const match = users.find(u => u.username === username && String(u.password) === password && u.active !== false);
-  if(!match){
-    errEl.textContent = 'Incorrect username or password.';
-    errEl.style.display = 'block';
-    return;
-  }
-  sessionStorage.setItem(AUTH_SESSION_KEY, JSON.stringify({username: match.username, name: match.name || match.username}));
+  document.getElementById('loginPassword').value = '';
+  sessionStorage.setItem(AUTH_SESSION_KEY, JSON.stringify({username: match.username, name: match.name || match.username, token}));
   enterApp(match);
 }
 
-function logout(){
+async function logout(){
+  if(!confirmDiscardPayrollEdits()) return;
+  payrollDirty = false;
+  if(API_URL){ try{ await apiCall('logout'); } catch(e){} }
   sessionStorage.removeItem(AUTH_SESSION_KEY);
   location.reload();
 }
 
+/**
+ * Session expired or was revoked: show the sign-in screen on top of the app
+ * WITHOUT reloading, so unsaved payroll edits are still there after signing
+ * back in and can be saved.
+ */
+function showLoginAgain(message){
+  sessionStorage.removeItem(AUTH_SESSION_KEY);
+  const errEl = document.getElementById('loginError');
+  errEl.textContent = message || 'Please sign in again.';
+  errEl.style.display = 'block';
+  document.getElementById('loginScreen').style.display = 'flex';
+}
+
 function enterApp(user){
+  const alreadyOpen = document.getElementById('appRoot').style.display === 'block';
   document.getElementById('loginScreen').style.display = 'none';
+  document.getElementById('loginError').style.display = 'none';
   document.getElementById('appRoot').style.display = 'block';
   document.getElementById('loggedInAs').textContent = user.name ? `Signed in as ${user.name}` : '';
-  renderStaffTable();
   updateConnectionStatus();
+  if(alreadyOpen){ toast('Signed in again — you can carry on (re-click Save if a save failed)'); return; }
+  renderStaffTable();
 }
 
 function checkLoginOnLoad(){
+  // The demo password hint only makes sense in demo mode.
+  document.querySelector('.login-hint').style.display = API_URL ? 'none' : '';
   const stored = sessionStorage.getItem(AUTH_SESSION_KEY);
   if(stored){
-    try{ enterApp(JSON.parse(stored)); return; } catch(e){ sessionStorage.removeItem(AUTH_SESSION_KEY); }
+    try{
+      const s = JSON.parse(stored);
+      if(!API_URL || s.token){ enterApp(s); return; }
+    } catch(e){}
+    sessionStorage.removeItem(AUTH_SESSION_KEY);
   }
   document.getElementById('loginScreen').style.display = 'flex';
   document.getElementById('appRoot').style.display = 'none';
